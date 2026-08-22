@@ -40,6 +40,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   // Control para mostrar u ocultar la sección de filtros
   bool _mostrarFiltros = false;
 
+  // Control de paginación visual
+  int _paginaActual = 1;
+  final int _itemsPorPagina = 5;
+
   // Getter para determinar si hay algún filtro activo
   bool get _estaFiltrado =>
       _filtroTalla != null ||
@@ -84,6 +88,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       _filtroPlataforma = null;
       _filtroColor = '';
       _filtroColorController.clear();
+      _paginaActual = 1;
     });
   }
 
@@ -318,8 +323,8 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               icon: Icon(_mostrarFiltros
                   ? Icons.filter_alt_off
                   : Icons.filter_alt_outlined),
-              label: Text(
-                  _mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'),
+              label:
+                  Text(_mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros'),
             ),
             Row(
               children: [
@@ -369,9 +374,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _estaFiltrado
-                            ? 'Filtrado'
-                            : 'Sin filtrar',
+                        _estaFiltrado ? 'Filtrado' : 'Sin filtrar',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -408,7 +411,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                           child: Text(t.toString()),
                         )),
                   ],
-                  onChanged: (v) => setState(() => _filtroTalla = v),
+                  onChanged: (v) => setState(() {
+                    _filtroTalla = v;
+                    _paginaActual = 1;
+                  }),
                 ),
               ),
               if (_tipoTieneTaco) ...[
@@ -428,7 +434,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                             child: Text(t.toString()),
                           )),
                     ],
-                    onChanged: (v) => setState(() => _filtroTaco = v),
+                    onChanged: (v) => setState(() {
+                      _filtroTaco = v;
+                      _paginaActual = 1;
+                    }),
                   ),
                 ),
               ],
@@ -449,12 +458,16 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                     items: [
                       const DropdownMenuItem<String?>(
                           value: null, child: Text('Todas')),
-                      ...opcionesPlataforma.map((p) => DropdownMenuItem<String?>(
-                            value: p,
-                            child: Text(p),
-                          )),
+                      ...opcionesPlataforma
+                          .map((p) => DropdownMenuItem<String?>(
+                                value: p,
+                                child: Text(p),
+                              )),
                     ],
-                    onChanged: (v) => setState(() => _filtroPlataforma = v),
+                    onChanged: (v) => setState(() {
+                      _filtroPlataforma = v;
+                      _paginaActual = 1;
+                    }),
                   ),
                 ),
               if (_tipoTienePlataforma && _tipoTieneColores)
@@ -468,7 +481,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.search),
                     ),
-                    onChanged: (v) => setState(() => _filtroColor = v),
+                    onChanged: (v) => setState(() {
+                      _filtroColor = v;
+                      _paginaActual = 1;
+                    }),
                   ),
                 ),
             ],
@@ -518,6 +534,37 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 decoration: TextDecoration.underline,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginacionVisual(int totalItems) {
+    if (totalItems <= _itemsPorPagina) return const SizedBox.shrink();
+
+    final int totalPaginas = (totalItems / _itemsPorPagina).ceil();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: _paginaActual > 1
+                ? () => setState(() => _paginaActual--)
+                : null,
+          ),
+          Text(
+            'Página $_paginaActual de $totalPaginas',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: _paginaActual < totalPaginas
+                ? () => setState(() => _paginaActual++)
+                : null,
           ),
         ],
       ),
@@ -608,7 +655,14 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
             ],
             IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => setState(() => _subfilas.removeAt(index))),
+                onPressed: () => setState(() {
+                      _subfilas.removeAt(index);
+                      final totalPaginas =
+                          (_subfilas.length / _itemsPorPagina).ceil();
+                      if (_paginaActual > totalPaginas && totalPaginas > 0) {
+                        _paginaActual = totalPaginas;
+                      }
+                    })),
           ],
         ),
         const SizedBox(height: 4),
@@ -699,9 +753,8 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
       final bool coincideTalla =
           _filtroTalla == null || sub['talla'] == _filtroTalla;
-      final bool coincideTaco = !_tipoTieneTaco ||
-          _filtroTaco == null ||
-          sub['taco'] == _filtroTaco;
+      final bool coincideTaco =
+          !_tipoTieneTaco || _filtroTaco == null || sub['taco'] == _filtroTaco;
       final bool coincidePlataforma = !_tipoTienePlataforma ||
           _filtroPlataforma == null ||
           sub['plataforma'] == _filtroPlataforma;
@@ -712,7 +765,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               .toLowerCase()
               .contains(_filtroColor.trim().toLowerCase());
 
-      if (coincideTalla && coincideTaco && coincidePlataforma && coincideColor) {
+      if (coincideTalla &&
+          coincideTaco &&
+          coincidePlataforma &&
+          coincideColor) {
         subfilasFiltradasIndices.add(i);
       }
     }
@@ -720,6 +776,20 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     final int totalSubfilas = _subfilas.length;
     final int visibles = subfilasFiltradasIndices.length;
     final int ocultas = totalSubfilas - visibles;
+
+    // 1. Invertimos la lista filtrada completa: El elemento más nuevo queda en la posición 0
+    final List<int> indicesInvertidos = subfilasFiltradasIndices.reversed.toList();
+
+    // 2. Calculamos los rangos según la página activa
+    final int inicio = (_paginaActual - 1) * _itemsPorPagina;
+    final int fin = (inicio + _itemsPorPagina < indicesInvertidos.length)
+        ? inicio + _itemsPorPagina
+        : indicesInvertidos.length;
+
+    // 3. Extraemos el bloque correspondientes a la página activa
+    final List<int> indicesPaginados = (inicio < indicesInvertidos.length)
+        ? indicesInvertidos.sublist(inicio, fin)
+        : [];
 
     return Scaffold(
       appBar: Designwidgets().appBarMain(
@@ -767,15 +837,11 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               const Text('Subfilas de inventario',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-
               _buildSeccionFiltros(visibles, totalSubfilas),
               const SizedBox(height: 12),
-
-              ...subfilasFiltradasIndices
-                  .map((index) => _buildSubfilaItem(index)),
-
+              ...indicesPaginados.map((index) => _buildSubfilaItem(index)),
+              _buildPaginacionVisual(visibles),
               _buildBannerOcultas(ocultas),
-
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -799,13 +865,16 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                           content: Text('Ya suman la cantidad total')));
                       return;
                     }
-                    setState(() => _subfilas.add({
-                          'cantidad': 0,
-                          'talla': 0,
-                          'taco': 0,
-                          'plataforma': null,
-                          'colores': ''
-                        }));
+                    setState(() {
+                      _subfilas.add({
+                        'cantidad': 0,
+                        'talla': 0,
+                        'taco': 0,
+                        'plataforma': null,
+                        'colores': ''
+                      });
+                      _paginaActual = 1;
+                    });
                   },
                   label: const Text('Agregar subfila'),
                 ),
