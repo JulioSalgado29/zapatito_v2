@@ -29,6 +29,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
   // 1. Nuevas variables de estado para el filtro
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _todosLosCalzados = [];
+  Map<String, String> _mapaIconos = {}; // <--- AGREGAR ESTA LÍNEA
   bool _cargando = true;
   String _searchQuery = '';
 
@@ -50,10 +51,25 @@ class _CalzadoPageState extends State<CalzadoPage> {
     if (widget.inventarioId == null) return;
     setState(() => _cargando = true);
 
+    // 1. Cargamos el catálogo de tipos e íconos una sola vez
+    final tipos = await TipoCalzadoService.obtenerTodosPorInventario(
+        widget.inventarioId.toString());
+
+    final Map<String, String> mapaTemp = {};
+    for (var t in tipos) {
+      final id = (t['id_tipo_calzado'] ?? t['id'])?.toString();
+      final icono = (t['icono'] ?? '❓').toString();
+      if (id != null) {
+        mapaTemp[id] = icono;
+      }
+    }
+
+    // 2. Cargamos los calzados
     final datos = await CalzadoService.obtenerPorInventario(
         widget.inventarioId.toString());
 
     setState(() {
+      _mapaIconos = mapaTemp; // Guardamos la caché de íconos
       _todosLosCalzados = datos;
       _cargando = false;
     });
@@ -196,24 +212,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
       ),
     );
   }
-
-  Future<String> _obtenerIconoTipo(String? tipoId) async {
-    if (tipoId == null || tipoId.isEmpty) return "❓";
-
-    final listado = await TipoCalzadoService.obtenerTodosPorInventario(
-        widget.inventarioId.toString());
-
-    final coincide = listado.firstWhere(
-      (e) {
-        final idEnMap = (e['id_tipo_calzado'] ?? e['id'])?.toString();
-        return idEnMap == tipoId.toString();
-      },
-      orElse: () => <String, dynamic>{},
-    );
-
-    return (coincide['icono'] ?? "❓").toString();
-  }
-
+  
   Widget _buildFeatureChip(IconData icon, String label, bool value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -323,171 +322,153 @@ class _CalzadoPageState extends State<CalzadoPage> {
                               final plataforma = data['plataforma'] ?? false;
                               final colores = data['colores'] ?? false;
 
-                              return FutureBuilder<String>(
-                                future: _obtenerIconoTipo(tipoId),
-                                builder: (context, iconSnapshot) {
-                                  final icono = iconSnapshot.data ?? "❓";
-                                  final bool mostrarAvisoPrecio =
-                                      (precio <= 0 &&
-                                          widget.isAlmacenero == false);
+                              // Se obtiene directamente del Map local en O(1) instantáneo:
+                              final icono = _mapaIconos[tipoId] ?? "❓";
+                              final bool mostrarAvisoPrecio =
+                                  (precio <= 0 && widget.isAlmacenero == false);
 
-                                  return Card(
-                                    elevation: 3,
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 8),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                    clipBehavior: Clip.antiAlias,
-                                    child: Column(
-                                      children: [
-                                        if (mostrarAvisoPrecio)
-                                          Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 4),
-                                            color: Colors.red.shade100,
-                                            child: const Text(
-                                              "⚠️ Falta ingresar el precio",
-                                              style: TextStyle(
-                                                  color: Colors.red,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 8),
-                                          child: ListTile(
-                                            leading: (icono
-                                                        .toString()
-                                                        .endsWith('.png') ||
-                                                    icono
-                                                        .toString()
-                                                        .endsWith('.jpg'))
-                                                ? Image.asset(icono,
-                                                    width: 45,
-                                                    height: 45,
-                                                    fit: BoxFit.contain)
-                                                : Text(icono,
-                                                    style: const TextStyle(
-                                                        fontSize: 32)),
-                                            title: Text(nombre,
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 18)),
-                                            subtitle: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                const SizedBox(height: 10),
-                                                Wrap(
-                                                  spacing: 12,
-                                                  runSpacing: 8,
-                                                  children: [
-                                                    _buildFeatureChip(
-                                                        Icons.height,
-                                                        'Taco',
-                                                        taco),
-                                                    _buildFeatureChip(
-                                                        Icons.layers,
-                                                        'Plataforma',
-                                                        plataforma),
-                                                    _buildFeatureChip(
-                                                        Icons.palette,
-                                                        'Colores',
-                                                        colores),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Row(
-                                                  children: [
-                                                    Icon(Icons.account_circle,
-                                                        size: 14,
-                                                        color:
-                                                            Colors.grey[400]),
-                                                    const SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: Text.rich(
-                                                        TextSpan(
-                                                          children: [
-                                                            if (widget
-                                                                    .isAlmacenero !=
-                                                                true) ...[
-                                                              TextSpan(
-                                                                text:
-                                                                    'S/ ${precio.toStringAsFixed(2)}',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 13,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                  color: Colors
-                                                                      .blue
-                                                                      .shade800,
-                                                                ),
-                                                              ),
-                                                              const TextSpan(
-                                                                text: '  |  ',
-                                                                style: TextStyle(
-                                                                    fontSize:
-                                                                        11,
-                                                                    color: Colors
-                                                                        .grey),
-                                                              ),
-                                                            ],
-                                                            TextSpan(
-                                                              text: widget.isAlmacenero ==
-                                                                      true
-                                                                  ? 'Creado por: $usuario'
-                                                                  : usuario,
-                                                              style: TextStyle(
-                                                                  fontSize: 11,
-                                                                  color: Colors
-                                                                          .grey[
-                                                                      500]),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                            trailing: Wrap(
-                                              direction: Axis.vertical,
-                                              alignment: WrapAlignment.center,
-                                              children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.edit,
-                                                      color: Colors.blueAccent,
-                                                      size: 22),
-                                                  onPressed: () =>
-                                                      _navegarFormulario(
-                                                          calzado: data),
-                                                ),
-                                                IconButton(
-                                                  icon: const Icon(
-                                                      Icons.delete_forever,
-                                                      color: Colors.redAccent,
-                                                      size: 22),
-                                                  onPressed: () =>
-                                                      _confirmarEliminacion(
-                                                          context, idCalzado),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
+                              return Card(
+                                elevation: 3,
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                clipBehavior: Clip.antiAlias,
+                                child: Column(
+                                  children: [
+                                    if (mostrarAvisoPrecio)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 4),
+                                        color: Colors.red.shade100,
+                                        child: const Text(
+                                          "⚠️ Falta ingresar el precio",
+                                          style: TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold),
+                                          textAlign: TextAlign.center,
                                         ),
-                                      ],
+                                      ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                      child: ListTile(
+                                        leading: (icono
+                                                    .toString()
+                                                    .endsWith('.png') ||
+                                                icono
+                                                    .toString()
+                                                    .endsWith('.jpg'))
+                                            ? Image.asset(icono,
+                                                width: 45,
+                                                height: 45,
+                                                fit: BoxFit.contain)
+                                            : Text(icono,
+                                                style: const TextStyle(
+                                                    fontSize: 32)),
+                                        title: Text(nombre,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18)),
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const SizedBox(height: 10),
+                                            Wrap(
+                                              spacing: 12,
+                                              runSpacing: 8,
+                                              children: [
+                                                _buildFeatureChip(
+                                                    Icons.height, 'Taco', taco),
+                                                _buildFeatureChip(Icons.layers,
+                                                    'Plataforma', plataforma),
+                                                _buildFeatureChip(Icons.palette,
+                                                    'Colores', colores),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.account_circle,
+                                                    size: 14,
+                                                    color: Colors.grey[400]),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text.rich(
+                                                    TextSpan(
+                                                      children: [
+                                                        if (widget
+                                                                .isAlmacenero !=
+                                                            true) ...[
+                                                          TextSpan(
+                                                            text:
+                                                                'S/ ${precio.toStringAsFixed(2)}',
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: Colors.blue
+                                                                  .shade800,
+                                                            ),
+                                                          ),
+                                                          const TextSpan(
+                                                            text: '  |  ',
+                                                            style: TextStyle(
+                                                                fontSize: 11,
+                                                                color: Colors
+                                                                    .grey),
+                                                          ),
+                                                        ],
+                                                        TextSpan(
+                                                          text: widget.isAlmacenero ==
+                                                                  true
+                                                              ? 'Creado por: $usuario'
+                                                              : usuario,
+                                                          style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: Colors
+                                                                  .grey[500]),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        trailing: Wrap(
+                                          direction: Axis.vertical,
+                                          alignment: WrapAlignment.center,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.edit,
+                                                  color: Colors.blueAccent,
+                                                  size: 22),
+                                              onPressed: () =>
+                                                  _navegarFormulario(
+                                                      calzado: data),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                  Icons.delete_forever,
+                                                  color: Colors.redAccent,
+                                                  size: 22),
+                                              onPressed: () =>
+                                                  _confirmarEliminacion(
+                                                      context, idCalzado),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  );
-                                },
+                                  ],
+                                ),
                               );
                             },
                           ),

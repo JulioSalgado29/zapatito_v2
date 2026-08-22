@@ -39,26 +39,44 @@ class _InventarioPageState extends State<InventarioPage> {
     setState(() => _cargando = true);
 
     try {
-      // 1. Obtenemos las filas y el catálogo de calzados en paralelo
+      // 1. Cargamos filas y catálogo completo de calzados en paralelo
       final resultados = await Future.wait([
         FilaInventarioService.obtenerPorInventario(widget.inventarioId!),
         CalzadoService.obtenerPorInventario(widget.inventarioId!),
       ]);
 
-      final filas = resultados[0];
-      final calzados = resultados[1];
+      final filas = List<Map<String, dynamic>>.from(resultados[0]);
+      final calzados = List<Map<String, dynamic>>.from(resultados[1]);
 
-      // 2. Creamos un mapa rápido de id_calzado -> nombre
-      final Map<String, String> mapaNombres = {
+      // 2. Crear mapa rápido de calzados id_calzado -> Map de datos
+      final Map<String, Map<String, dynamic>> mapaCalzados = {
         for (var c in calzados)
-          (c['id_calzado'] ?? c['id'])?.toString() ?? '':
-              (c['nombre'] ?? 'Sin nombre').toString()
+          (c['id_calzado'] ?? c['id'])?.toString() ?? '': c
       };
 
-      // 3. Adjuntamos el nombre a cada fila para el filtro dinámico
-      for (var fila in filas) {
-        final idCalzado = fila['id_calzado']?.toString() ?? '';
-        fila['nombre_calzado'] = mapaNombres[idCalzado] ?? 'Sin nombre';
+      // 3. Obtener subfilas de todas las filas en paralelo
+      final futuresSubfilas = filas.map((fila) {
+        final filaId = fila['id_fila_inventario']?.toString() ?? '';
+        return FilaInventarioService.obtenerSubfilas(filaId);
+      }).toList();
+
+      final listaSubfilas = await Future.wait(futuresSubfilas);
+
+      // 4. Inyectar datos completos de calzado y subfilas a cada fila
+      for (int i = 0; i < filas.length; i++) {
+        final idCalzado = filas[i]['id_calzado']?.toString() ?? '';
+        final calzadoData = mapaCalzados[idCalzado];
+
+        filas[i]['nombre_calzado'] = calzadoData?['nombre'] ?? 'Sin nombre';
+        filas[i]['calzado_data'] = {
+          'nombre': calzadoData?['nombre'] ?? 'Sin nombre',
+          'icono': calzadoData?['icono'],
+          'taco': calzadoData?['taco'] ?? true,
+          'plataforma': calzadoData?['plataforma'] ?? true,
+          'colores': calzadoData?['colores'] ?? true,
+          'activo': calzadoData?['activo'] ?? true,
+        };
+        filas[i]['subfilas'] = listaSubfilas[i];
       }
 
       setState(() {
@@ -68,33 +86,6 @@ class _InventarioPageState extends State<InventarioPage> {
     } catch (e) {
       setState(() => _cargando = false);
     }
-  }
-
-  Future<Map<String, dynamic>> _getDatosCalzado(String calzadoId) async {
-    // Llamada al método estático de tu servicio (ajusta 'CalzadoService' según el nombre de tu clase)
-    final calzadoData = await CalzadoService.obtenerPorId(calzadoId);
-
-    // Si la API devuelve null (no lo encuentra o error de red), retorna los valores por defecto
-    if (calzadoData == null) {
-      return {
-        'nombre': 'Sin nombre',
-        'icono': null,
-        'taco': true,
-        'plataforma': true,
-        'colores': true,
-        'activo': false,
-      };
-    }
-
-    // Mapeo seguro con valores por defecto desde la respuesta JSON de PostgreSQL
-    return {
-      'nombre': calzadoData['nombre'] ?? 'Sin nombre',
-      'icono': calzadoData['icono'],
-      'taco': calzadoData['taco'] ?? true,
-      'plataforma': calzadoData['plataforma'] ?? true,
-      'colores': calzadoData['colores'] ?? true,
-      'activo': calzadoData['activo'] ?? true,
-    };
   }
 
   void _mostrarSplashScreen() {
@@ -405,7 +396,6 @@ class _InventarioPageState extends State<InventarioPage> {
                               return _FilaInventarioItem(
                                 key: ValueKey(filaId),
                                 fila: fila,
-                                getDatosCalzado: _getDatosCalzado,
                                 onEliminar: (id) =>
                                     _confirmarEliminacion(context, id),
                                 onEditar: (id) => _abrirFormulario(filaId: id),
@@ -472,9 +462,8 @@ Widget _buildFab(Gradient gradient, String tag, VoidCallback onPressed,
   );
 }
 
-class _FilaInventarioItem extends StatefulWidget {
+class _FilaInventarioItem extends StatelessWidget {
   final Map<String, dynamic> fila;
-  final Future<Map<String, dynamic>> Function(String) getDatosCalzado;
   final Function(String) onEliminar;
   final Function(String) onEditar;
   final Widget Function(String?) buildIcon;
@@ -484,7 +473,6 @@ class _FilaInventarioItem extends StatefulWidget {
   const _FilaInventarioItem({
     super.key,
     required this.fila,
-    required this.getDatosCalzado,
     required this.onEliminar,
     required this.onEditar,
     required this.buildIcon,
@@ -493,166 +481,117 @@ class _FilaInventarioItem extends StatefulWidget {
   });
 
   @override
-  State<_FilaInventarioItem> createState() => _FilaInventarioItemState();
-}
-
-class _FilaInventarioItemState extends State<_FilaInventarioItem>
-    with AutomaticKeepAliveClientMixin {
-  late Future<Map<String, dynamic>> _calzadoFuture;
-  late Future<List<Map<String, dynamic>>> _subfilasFuture;
-
-  @override
-  bool get wantKeepAlive => true; // 👈 Mantiene vivo el ítem al hacer scroll
-
-  @override
-  void initState() {
-    super.initState();
-    final filaId = widget.fila['id_fila_inventario']?.toString() ?? '';
-    final calzadoId = widget.fila['id_calzado']?.toString() ?? '';
-
-    _calzadoFuture = widget.getDatosCalzado(calzadoId);
-    _subfilasFuture = FilaInventarioService.obtenerSubfilas(filaId);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    super.build(context);
-    final filaId = widget.fila['id_fila_inventario']?.toString() ?? '';
-    final cantidad = widget.fila['cantidad'];
+    final filaId = fila['id_fila_inventario']?.toString() ?? '';
+    final cantidad = fila['cantidad'];
 
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _calzadoFuture,
-      builder: (context, calzadoSnap) {
-        if (!calzadoSnap.hasData) {
-          return const Padding(
-            padding: EdgeInsets.all(12.0),
-            child: LinearProgressIndicator(),
-          );
-        }
+    // Extraer datos precargados
+    final calzadoData = (fila['calzado_data'] as Map<String, dynamic>?) ?? {};
+    final nombreCalzado = calzadoData['nombre'] ?? 'Sin nombre';
+    final icono = calzadoData['icono'] as String?;
+    final tieneTaco = calzadoData['taco'] ?? true;
+    final tienePlataforma = calzadoData['plataforma'] ?? true;
+    final tieneColores = calzadoData['colores'] ?? true;
+    final estaActivo = calzadoData['activo'] ?? true;
 
-        final calzadoData = calzadoSnap.data!;
-        final nombreCalzado = calzadoData['nombre'] ?? 'Sin nombre';
-        final icono = calzadoData['icono'] as String?;
-        final tieneTaco = calzadoData['taco'] ?? true;
-        final tienePlataforma = calzadoData['plataforma'] ?? true;
-        final tieneColores = calzadoData['colores'] ?? true;
-        final estaActivo = calzadoData['activo'] ?? true;
+    final List subfilas = (fila['subfilas'] as List?) ?? [];
 
-        return FutureBuilder<List<Map<String, dynamic>>>(
-          future: _subfilasFuture,
-          builder: (context, subfilaSnap) {
-            if (subfilaSnap.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(12),
-                child: LinearProgressIndicator(),
-              );
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      elevation: 3,
+      child: ExpansionTile(
+        leading: buildIcon(icono),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                nombreCalzado,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            buildEstadoChip(estaActivo),
+          ],
+        ),
+        subtitle: Text('Cantidad total: $cantidad'),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'editar') {
+              onEditar(filaId);
+            } else if (value == 'eliminar') {
+              onEliminar(filaId);
             }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(value: 'editar', child: Text('Editar')),
+            PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+          ],
+        ),
+        children: subfilas.isEmpty
+            ? const [
+                Padding(
+                  padding: EdgeInsets.all(12.0),
+                  child: Text(
+                    'Sin subfilas registradas.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ]
+            : subfilas.map((sub) {
+                final cantSub = sub['cantidad'];
+                final talla = sub['talla'];
+                final taco = sub['taco'];
+                final plataforma = sub['plataforma'];
+                final colores = sub['colores'];
 
-            final subfilas = subfilaSnap.data ?? [];
-
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              elevation: 3,
-              child: ExpansionTile(
-                leading: widget.buildIcon(icono),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        nombreCalzado,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(width: 8),
-                    widget.buildEstadoChip(estaActivo),
-                  ],
-                ),
-                subtitle: Text('Cantidad total: $cantidad'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    if (value == 'editar') {
-                      widget.onEditar(filaId); // 🔹 LLAMAR A LA FUNCIÓN AQUÍ
-                    } else if (value == 'eliminar') {
-                      widget.onEliminar(filaId);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'editar', child: Text('Editar')),
-                    PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-                  ],
-                ),
-                children: subfilas.isEmpty
-                    ? const [
-                        Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: Text(
-                            'Sin subfilas registradas.',
-                            style: TextStyle(color: Colors.grey),
+                    child: const Icon(Icons.inventory_2_outlined,
+                        color: Color(0xFF4E4E4E)),
+                  ),
+                  title: Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Talla: $talla',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Cant: $cantSub',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueGrey,
                           ),
                         ),
-                      ]
-                    : subfilas.map((sub) {
-                        final cantidad = sub['cantidad'];
-                        final talla = sub['talla'];
-                        final taco = sub['taco'];
-                        final plataforma = sub['plataforma'];
-                        final colores = sub['colores'];
-
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.inventory_2_outlined,
-                                color: Color(0xFF4E4E4E)),
-                          ),
-                          title: Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Talla: $talla',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  'Cant: $cantidad',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blueGrey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          subtitle: Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              if (tieneTaco)
-                                widget.buildInfoChip('Taco: $taco'),
-                              if (tienePlataforma && plataforma != null)
-                                widget.buildInfoChip('Plataforma: $plataforma'),
-                              if (tieneColores &&
-                                  colores != null &&
-                                  colores.toString().isNotEmpty)
-                                widget.buildInfoChip('Color: $colores',
-                                    isColor: true),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-              ),
-            );
-          },
-        );
-      },
+                      ],
+                    ),
+                  ),
+                  subtitle: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (tieneTaco) buildInfoChip('Taco: $taco'),
+                      if (tienePlataforma && plataforma != null)
+                        buildInfoChip('Plataforma: $plataforma'),
+                      if (tieneColores &&
+                          colores != null &&
+                          colores.toString().isNotEmpty)
+                        buildInfoChip('Color: $colores', isColor: true),
+                    ],
+                  ),
+                );
+              }).toList(),
+      ),
     );
   }
 }
