@@ -158,7 +158,7 @@ class _InventarioPageState extends State<InventarioPage> {
     );
 
     if (result == true) {
-      setState(() {});
+      _cargarFilas(); // 👈 Llama a la API para traer la lista actualizada
     }
   }
 
