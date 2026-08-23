@@ -1,16 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:zapatito_v2/services/API/api_service.dart';
 
 class FilaInventarioService {
   // IP y puerto de tu servidor Node.js
-  static const String baseUrl = 'http://100.52.225.187:3000';
-
   // 1. Obtener filas por ID de inventario
   static Future<List<Map<String, dynamic>>> obtenerPorInventario(
       String inventarioId) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/api/fila_inventario/inventario/$inventarioId'))
+          .get(Uri.parse('${ApiService.baseUrl}/api/fila_inventario/inventario/$inventarioId'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -29,7 +28,7 @@ class FilaInventarioService {
       String? filaId) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/api/subfila_inventario/fila/$filaId'))
+          .get(Uri.parse('${ApiService.baseUrl}/api/subfila_inventario/fila/$filaId'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -47,7 +46,7 @@ class FilaInventarioService {
   static Future<bool> eliminar(String idFila) async {
     try {
       final response = await http
-          .delete(Uri.parse('$baseUrl/api/fila_inventario/$idFila'))
+          .delete(Uri.parse('${ApiService.baseUrl}/api/fila_inventario/$idFila'))
           .timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
@@ -62,7 +61,7 @@ class FilaInventarioService {
       String? idFila) async {
     try {
       final response = await http
-          .get(Uri.parse('$baseUrl/api/fila_inventario/detalle/$idFila'))
+          .get(Uri.parse('${ApiService.baseUrl}/api/fila_inventario/detalle/$idFila'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -86,12 +85,11 @@ class FilaInventarioService {
     try {
       final response = await http
           .post(
-            Uri.parse('$baseUrl/api/fila_inventario/guardar'),
+            Uri.parse('${ApiService.baseUrl}/api/fila_inventario/guardar'),
             headers: {'Content-Type': 'application/json'},
             body: json.encode(datos),
           )
           .timeout(const Duration(seconds: 10));
-
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       print('Error en guardar fila: $e');
@@ -105,7 +103,7 @@ class FilaInventarioService {
     try {
       final response = await http
           .put(
-            Uri.parse('$baseUrl/api/fila_inventario/$idFila'),
+            Uri.parse('${ApiService.baseUrl}/api/fila_inventario/$idFila'),
             headers: {'Content-Type': 'application/json'},
             body: json.encode(datos),
           )
