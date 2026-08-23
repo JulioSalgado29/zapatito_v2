@@ -56,6 +56,50 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:458935581305:android:913dfc23c9705c7f7572a8",
+        "android_client_info": {
+          "package_name": "com.juliosalgado.zapatito_v2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "458935581305-65sslm92d4rksk3h30cv705ibbfu6o2o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.juliosalgado.zapatito_v2",
+            "certificate_hash": "c22aa0b25847b782b96663be623943c391111d93"
+          }
+        },
+        {
+          "client_id": "458935581305-4l39bio6e8rbkdjlu20s2b16ni32n3gt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLPBEocUGsqnt6DTFpJKsMUmjBCP1QgTE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "458935581305-4l39bio6e8rbkdjlu20s2b16ni32n3gt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "458935581305-vmibdrcf48k60p2o4snqsic7sffhhqtl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.zapatito"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
