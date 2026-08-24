@@ -750,7 +750,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 icon: const Icon(Icons.add_circle_outline, size: 18),
-                label: const Text('Agregar Talla/Cantidad'),
+                label: const Text('Agregar subfila'),
                 onPressed: () {
                   final totalColor = (bloque['cantidad_color'] ?? 0) as int;
 
