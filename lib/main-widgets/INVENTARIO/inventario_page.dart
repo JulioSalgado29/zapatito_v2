@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_form_page.dart';
+import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_form_page_color.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_form_page_serie.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
@@ -156,7 +157,22 @@ class _InventarioPageState extends State<InventarioPage> {
             inventarioId: widget.inventarioId),
       ),
     );
+  
+    if (result == true) {
+      _cargarFilas(); // 👈 Llama a la API para traer la lista actualizada
+    }
+  }
 
+  Future<void> _abrirFormularioColor() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InventarioFormPageColor(
+            firstName: widget.firstName,
+            emailUser: widget.emailUser,
+            inventarioId: widget.inventarioId),
+      ),
+    );
     if (result == true) {
       _cargarFilas(); // 👈 Llama a la API para traer la lista actualizada
     }
@@ -417,13 +433,21 @@ class _InventarioPageState extends State<InventarioPage> {
             Designwidgets().linearGradientBlue(context),
             "btn1",
             _abrirFormulario,
-            "Manual",
+            "Codigo",
+            Icons.add_circle_outline,
+          ),
+          const SizedBox(height: 12),
+          _buildFab(
+            Designwidgets().linearGradientPurple(context),
+            "btn2",
+            _abrirFormularioColor,
+            "Color",
             Icons.add_circle_outline,
           ),
           const SizedBox(height: 12),
           _buildFab(
             Designwidgets().linearGradientFire(context),
-            "btn2",
+            "btn3",
             _abrirFormularioSerie,
             "Por serie",
             Icons.inventory_2,
