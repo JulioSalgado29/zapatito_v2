@@ -39,4 +39,31 @@ class UsuarioService {
       return null;
     }
   }
+
+  // Petición GET para verificar si el inventario tiene calzados con colores activos
+  // GET /api/usuario/tiene-colores/:id_inventario
+  static Future<bool> verificarTieneCalzadoConColores(dynamic idInventario) async {
+    try {
+      final idStr = idInventario.toString();
+      final url = Uri.parse(
+        '${ApiService.baseUrl}/api/usuario/tiene-colores/${Uri.encodeComponent(idStr)}',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return data['tiene_calzado_con_colores'] ?? false;
+      } else {
+        print('Error al verificar calzados con colores. Status code: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('Error de red al verificar calzados con colores: $e');
+      return false;
+    }
+  }
 }

@@ -32,6 +32,35 @@ class CalzadoService {
     }
   }
 
+  // 1.b. Obtener la lista de calzados activos con colores = true por ID de inventario
+  // GET /api/calzado/inventario/:id_inventario/colores
+  static Future<List<Map<String, dynamic>>> obtenerPorInventarioConColores(
+    String? idInventario,
+  ) async {
+    try {
+      final idStr = idInventario.toString();
+      final url = Uri.parse(
+        '${ApiService.baseUrl}/api/calzado/inventario/${Uri.encodeComponent(idStr)}/colores',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        print('Error al listar calzados con colores. Status code: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error de red al listar calzados con colores: $e');
+      return [];
+    }
+  }
+
   // 2. Obtener un calzado por ID
   // GET /api/calzado/:id
   static Future<Map<String, dynamic>?> obtenerPorId(String id) async {

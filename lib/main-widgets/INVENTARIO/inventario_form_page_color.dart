@@ -58,7 +58,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   @override
   void initState() {
     super.initState();
-    _calzadosFuture = CalzadoService.obtenerPorInventario(
+    _calzadosFuture = CalzadoService.obtenerPorInventarioConColores(
       widget.inventarioId.toString(),
     );
     _agregarNuevoBloqueColor();

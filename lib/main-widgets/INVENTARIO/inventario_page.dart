@@ -7,14 +7,19 @@ import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_form_page_serie.d
 import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
 import 'package:zapatito_v2/services/API/inventario.dart';
+import 'package:zapatito_v2/services/API/usuario.dart';
 
 class InventarioPage extends StatefulWidget {
   final String? firstName;
   final String? emailUser;
   final String? inventarioId;
 
-  const InventarioPage(
-      {super.key, this.firstName, this.emailUser, this.inventarioId});
+  const InventarioPage({
+    super.key,
+    this.firstName,
+    this.emailUser,
+    this.inventarioId,
+  });
 
   @override
   State<InventarioPage> createState() => _InventarioPageState();
@@ -26,36 +31,39 @@ class _InventarioPageState extends State<InventarioPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _cargando = true;
   String _searchQuery = '';
+  bool tieneCalzadoConColores = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarFilas();
     InventarioService.validarYRedirigir(context, widget.inventarioId);
+    _cargarDatosIniciales();
   }
 
-  Future<void> _cargarFilas() async {
+  // Carga paralela de colores, filas y catálogo
+  Future<void> _cargarDatosIniciales() async {
     if (widget.inventarioId == null) return;
 
     setState(() => _cargando = true);
 
     try {
-      // 1. Cargamos filas y catálogo completo de calzados en paralelo
       final resultados = await Future.wait([
+        UsuarioService.verificarTieneCalzadoConColores(widget.inventarioId),
         FilaInventarioService.obtenerPorInventario(widget.inventarioId!),
         CalzadoService.obtenerPorInventario(widget.inventarioId!),
       ]);
 
-      final filas = List<Map<String, dynamic>>.from(resultados[0]);
-      final calzados = List<Map<String, dynamic>>.from(resultados[1]);
+      final bool resultadoColores = resultados[0] as bool;
+      final filas = List<Map<String, dynamic>>.from(resultados[1] as List);
+      final calzados = List<Map<String, dynamic>>.from(resultados[2] as List);
 
-      // 2. Crear mapa rápido de calzados id_calzado -> Map de datos
+      // Mapa rápido de calzados
       final Map<String, Map<String, dynamic>> mapaCalzados = {
         for (var c in calzados)
           (c['id_calzado'] ?? c['id'])?.toString() ?? '': c
       };
 
-      // 3. Obtener subfilas de todas las filas en paralelo
+      // Subfilas en paralelo
       final futuresSubfilas = filas.map((fila) {
         final filaId = fila['id_fila_inventario']?.toString() ?? '';
         return FilaInventarioService.obtenerSubfilas(filaId);
@@ -63,7 +71,7 @@ class _InventarioPageState extends State<InventarioPage> {
 
       final listaSubfilas = await Future.wait(futuresSubfilas);
 
-      // 4. Inyectar datos completos de calzado y subfilas a cada fila
+      // Inyección de datos
       for (int i = 0; i < filas.length; i++) {
         final idCalzado = filas[i]['id_calzado']?.toString() ?? '';
         final calzadoData = mapaCalzados[idCalzado];
@@ -80,12 +88,17 @@ class _InventarioPageState extends State<InventarioPage> {
         filas[i]['subfilas'] = listaSubfilas[i];
       }
 
-      setState(() {
-        _todasLasFilas = filas;
-        _cargando = false;
-      });
+      if (mounted) {
+        setState(() {
+          tieneCalzadoConColores = resultadoColores;
+          _todasLasFilas = filas;
+          _cargando = false;
+        });
+      }
     } catch (e) {
-      setState(() => _cargando = false);
+      if (mounted) {
+        setState(() => _cargando = false);
+      }
     }
   }
 
@@ -113,12 +126,10 @@ class _InventarioPageState extends State<InventarioPage> {
     await Future.delayed(const Duration(milliseconds: 150));
 
     if (mounted) {
-      setState(() {
-        _cargarFilas(); // 👈 Recarga la lista tras eliminar
-      });
+      _cargarDatosIniciales();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Codigo de inventario eliminado correctamente 🗑️'),
+          content: Text('Código de inventario eliminado correctamente 🗑️'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -141,9 +152,7 @@ class _InventarioPageState extends State<InventarioPage> {
     );
 
     if (result == true) {
-      setState(() {
-        _cargarFilas(); // 👈 Recarga los datos solo cuando se crea/edita algo
-      });
+      _cargarDatosIniciales();
     }
   }
 
@@ -152,14 +161,15 @@ class _InventarioPageState extends State<InventarioPage> {
       context,
       MaterialPageRoute(
         builder: (_) => InventarioSerieFormPage(
-            firstName: widget.firstName,
-            emailUser: widget.emailUser,
-            inventarioId: widget.inventarioId),
+          firstName: widget.firstName,
+          emailUser: widget.emailUser,
+          inventarioId: widget.inventarioId,
+        ),
       ),
     );
-  
+
     if (result == true) {
-      _cargarFilas(); // 👈 Llama a la API para traer la lista actualizada
+      _cargarDatosIniciales();
     }
   }
 
@@ -168,20 +178,24 @@ class _InventarioPageState extends State<InventarioPage> {
       context,
       MaterialPageRoute(
         builder: (_) => InventarioFormPageColor(
-            firstName: widget.firstName,
-            emailUser: widget.emailUser,
-            inventarioId: widget.inventarioId),
+          firstName: widget.firstName,
+          emailUser: widget.emailUser,
+          inventarioId: widget.inventarioId,
+        ),
       ),
     );
     if (result == true) {
-      _cargarFilas(); // 👈 Llama a la API para traer la lista actualizada
+      _cargarDatosIniciales();
     }
   }
 
   Widget _buildIcon(String? icono) {
     if (icono == null || icono.isEmpty) {
-      return const Icon(Icons.shopping_bag_outlined,
-          size: 40, color: Colors.blueAccent);
+      return const Icon(
+        Icons.shopping_bag_outlined,
+        size: 40,
+        color: Colors.blueAccent,
+      );
     }
 
     final lower = icono.toLowerCase();
@@ -230,11 +244,14 @@ class _InventarioPageState extends State<InventarioPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning_amber_rounded,
-                  size: 60, color: Colors.white),
+              const Icon(
+                Icons.warning_amber_rounded,
+                size: 60,
+                color: Colors.white,
+              ),
               const SizedBox(height: 16),
               const Text(
-                '¿Eliminar codigo de inventario?',
+                '¿Eliminar código de inventario?',
                 style: TextStyle(
                   fontSize: 22,
                   color: Colors.white,
@@ -255,26 +272,32 @@ class _InventarioPageState extends State<InventarioPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[900],
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
                     onPressed: () => Navigator.pop(ctx),
                     icon: const Icon(Icons.cancel, color: Colors.white),
-                    label: const Text('Cancelar',
-                        style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'Cancelar',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.redAccent,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
                     onPressed: () async {
                       _mostrarSplashScreen();
                       await _eliminarFila(id);
                     },
                     icon: const Icon(Icons.delete_forever, color: Colors.white),
-                    label: const Text('Eliminar',
-                        style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'Eliminar',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ],
               ),
@@ -292,7 +315,8 @@ class _InventarioPageState extends State<InventarioPage> {
         color: isColor ? Colors.indigo[50] : Colors.grey[100],
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-            color: isColor ? Colors.indigo[100]! : Colors.grey[300]!),
+          color: isColor ? Colors.indigo[100]! : Colors.grey[300]!,
+        ),
       ),
       child: Text(
         text,
@@ -311,8 +335,9 @@ class _InventarioPageState extends State<InventarioPage> {
       decoration: BoxDecoration(
         color: activo ? Colors.green[50] : Colors.red[50],
         borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: activo ? Colors.green[200]! : Colors.red[200]!),
+        border: Border.all(
+          color: activo ? Colors.green[200]! : Colors.red[200]!,
+        ),
       ),
       child: Text(
         activo ? 'CODIGO\nACTIVO' : 'CODIGO\nINACTIVO',
@@ -329,7 +354,8 @@ class _InventarioPageState extends State<InventarioPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.inventarioId == null) {
+    // Si no hay ID o aún está cargando la API inicial, muestra SplashScreen
+    if (widget.inventarioId == null || _cargando) {
       return const SplashScreen02();
     }
 
@@ -344,7 +370,6 @@ class _InventarioPageState extends State<InventarioPage> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // 🔹 Campo de texto para buscar por Nombre
             TextField(
               controller: _searchController,
               onChanged: (val) {
@@ -379,49 +404,47 @@ class _InventarioPageState extends State<InventarioPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: Colors.blueAccent, width: 2),
+                  borderSide: const BorderSide(
+                    color: Colors.blueAccent,
+                    width: 2,
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
-
-            // 🔹 Renderizado de lista
             Expanded(
-              child: _cargando
-                  ? const Center(child: CircularProgressIndicator())
-                  : filasFiltradas.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchQuery.isEmpty
-                                ? 'No hay filas de inventario registradas.'
-                                : 'No se encontraron calzados con "$_searchQuery"',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _cargarFilas,
-                          child: ListView.builder(
-                            itemCount: filasFiltradas.length,
-                            itemBuilder: (context, index) {
-                              final fila = filasFiltradas[index];
-                              final filaId =
-                                  fila['id_fila_inventario']?.toString() ??
-                                      index.toString();
+              child: filasFiltradas.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'No hay filas de inventario registradas.'
+                            : 'No se encontraron calzados con "$_searchQuery"',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _cargarDatosIniciales,
+                      child: ListView.builder(
+                        itemCount: filasFiltradas.length,
+                        itemBuilder: (context, index) {
+                          final fila = filasFiltradas[index];
+                          final filaId =
+                              fila['id_fila_inventario']?.toString() ??
+                                  index.toString();
 
-                              return _FilaInventarioItem(
-                                key: ValueKey(filaId),
-                                fila: fila,
-                                onEliminar: (id) =>
-                                    _confirmarEliminacion(context, id),
-                                onEditar: (id) => _abrirFormulario(filaId: id),
-                                buildIcon: _buildIcon,
-                                buildEstadoChip: _buildEstadoChip,
-                                buildInfoChip: _buildInfoChip,
-                              );
-                            },
-                          ),
-                        ),
+                          return _FilaInventarioItem(
+                            key: ValueKey(filaId),
+                            fila: fila,
+                            onEliminar: (id) =>
+                                _confirmarEliminacion(context, id),
+                            onEditar: (id) => _abrirFormulario(filaId: id),
+                            buildIcon: _buildIcon,
+                            buildEstadoChip: _buildEstadoChip,
+                            buildInfoChip: _buildInfoChip,
+                          );
+                        },
+                      ),
+                    ),
             ),
           ],
         ),
@@ -437,14 +460,16 @@ class _InventarioPageState extends State<InventarioPage> {
             Icons.add_circle_outline,
           ),
           const SizedBox(height: 12),
-          _buildFab(
-            Designwidgets().linearGradientPurple(context),
-            "btn2",
-            _abrirFormularioColor,
-            "Color",
-            Icons.add_circle_outline,
-          ),
-          const SizedBox(height: 12),
+          if (tieneCalzadoConColores) ...[
+            _buildFab(
+              Designwidgets().linearGradientPurple(context),
+              "btn2",
+              _abrirFormularioColor,
+              "Color",
+              Icons.add_circle_outline,
+            ),
+            const SizedBox(height: 12),
+          ],
           _buildFab(
             Designwidgets().linearGradientFire(context),
             "btn3",
@@ -458,29 +483,40 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 }
 
-Widget _buildFab(Gradient gradient, String tag, VoidCallback onPressed,
-    String label, IconData icon) {
+Widget _buildFab(
+  Gradient gradient,
+  String tag,
+  VoidCallback onPressed,
+  String label,
+  IconData icon,
+) {
   return SizedBox(
     width: 170,
     child: Container(
       decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2))
-          ]),
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: FloatingActionButton.extended(
         heroTag: tag,
         backgroundColor: Colors.transparent,
         elevation: 0,
         onPressed: onPressed,
         icon: Icon(icon, color: Colors.white),
-        label: Text(label,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+        label: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     ),
   );
@@ -509,7 +545,6 @@ class _FilaInventarioItem extends StatelessWidget {
     final filaId = fila['id_fila_inventario']?.toString() ?? '';
     final cantidad = fila['cantidad'];
 
-    // Extraer datos precargados
     final calzadoData = (fila['calzado_data'] as Map<String, dynamic>?) ?? {};
     final nombreCalzado = calzadoData['nombre'] ?? 'Sin nombre';
     final icono = calzadoData['icono'] as String?;
@@ -570,15 +605,19 @@ class _FilaInventarioItem extends StatelessWidget {
 
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.inventory_2_outlined,
-                        color: Color(0xFF4E4E4E)),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: Color(0xFF4E4E4E),
+                    ),
                   ),
                   title: Padding(
                     padding: const EdgeInsets.only(bottom: 4),
@@ -587,7 +626,9 @@ class _FilaInventarioItem extends StatelessWidget {
                         Text(
                           'Talla: $talla',
                           style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                         const Spacer(),
                         Text(
