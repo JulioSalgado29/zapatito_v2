@@ -18,7 +18,8 @@ class InventarioFormPageColor extends StatefulWidget {
   });
 
   @override
-  State<InventarioFormPageColor> createState() => _InventarioFormPageColorState();
+  State<InventarioFormPageColor> createState() =>
+      _InventarioFormPageColorState();
 }
 
 class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
@@ -50,7 +51,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       _filtroColor.trim().isNotEmpty;
 
   int _cantidadFila = 0;
-  
+
   final List<Map<String, dynamic>> _subfilasColor = [];
   final Map<String, String?> _iconCache = {};
 
@@ -73,12 +74,13 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     _subfilasColor.add({
       'color': '',
       'cantidad_color': 0,
-      'minisubfilas': [
-        {
+      // Forzamos el tipo List<Map<String, dynamic>> para evitar restricción de tipos int
+      'minisubfilas': <Map<String, dynamic>>[
+        <String, dynamic>{
           'cantidad': 0,
           'talla': 0,
           'taco': 0,
-          'plataforma': null,
+          'plataforma': null, // Puede recibir String o null
         }
       ]
     });
@@ -150,8 +152,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     }
 
     if (_subfilasColor.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Debes registrar al menos un color')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Debes registrar al menos un color')));
       return;
     }
 
@@ -163,17 +165,20 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       final bloqueColor = _subfilasColor[i];
       final colorNombre = (bloqueColor['color'] ?? '').toString().trim();
       final cantidadColor = (bloqueColor['cantidad_color'] ?? 0) as int;
-      final miniSubfilas = (bloqueColor['minisubfilas'] as List<dynamic>?) ?? [];
+      final miniSubfilas =
+          (bloqueColor['minisubfilas'] as List<dynamic>?) ?? [];
 
       if (_tipoTieneColores && colorNombre.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Ingresa un nombre de color válido en la sección #${i + 1}')));
+            content: Text(
+                'Ingresa un nombre de color válido en la sección #${i + 1}')));
         return;
       }
 
       if (cantidadColor <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('El total del color "$colorNombre" debe ser mayor a 0')));
+            content:
+                Text('El total del color "$colorNombre" debe ser mayor a 0')));
         return;
       }
 
@@ -182,7 +187,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       int sumaMiniSubfilas = 0;
       if (miniSubfilas.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('El color "$colorNombre" debe tener al menos una subfila de talla/cantidad')));
+            content: Text(
+                'El color "$colorNombre" debe tener al menos una subfila de talla/cantidad')));
         return;
       }
 
@@ -194,26 +200,31 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
         if (cant <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Todas las subfilas del color "$colorNombre" deben tener cantidad mayor a 0')));
+              content: Text(
+                  'Todas las subfilas del color "$colorNombre" deben tener cantidad mayor a 0')));
           return;
         }
 
         if (talla <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Todas las subfilas del color "$colorNombre" deben tener una talla seleccionada')));
+              content: Text(
+                  'Todas las subfilas del color "$colorNombre" deben tener una talla seleccionada')));
           return;
         }
 
-        if (_tipoTienePlataforma && (plataforma == null || plataforma.toString().isEmpty)) {
+        if (_tipoTienePlataforma &&
+            (plataforma == null || plataforma.toString().isEmpty)) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Selecciona el tipo de plataforma en todas las subfilas del color "$colorNombre"')));
+              content: Text(
+                  'Selecciona el tipo de plataforma en todas las subfilas del color "$colorNombre"')));
           return;
         }
 
         final key = '${talla}_${taco}_${plataforma}_$colorNombre';
         if (combinaciones.contains(key)) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('No se pueden repetir subfilas con iguales atributos ($colorNombre - Talla $talla)')));
+              content: Text(
+                  'No se pueden repetir subfilas con iguales atributos ($colorNombre - Talla $talla)')));
           return;
         }
         combinaciones.add(key);
@@ -231,14 +242,16 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
       if (sumaMiniSubfilas != cantidadColor) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('La suma de las subfilas de "$colorNombre" ($sumaMiniSubfilas) debe ser igual al total asignado a ese color ($cantidadColor)')));
+            content: Text(
+                'La suma de las subfilas de "$colorNombre" ($sumaMiniSubfilas) debe ser igual al total asignado a ese color ($cantidadColor)')));
         return;
       }
     }
 
     if (sumaTotalColores != _cantidadFila) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('La suma total de todos los colores ($sumaTotalColores) debe ser igual a la cantidad total del inventario ($_cantidadFila)')));
+          content: Text(
+              'La suma total de todos los colores ($sumaTotalColores) debe ser igual a la cantidad total del inventario ($_cantidadFila)')));
       return;
     }
 
@@ -545,9 +558,10 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
 
-    final tallaActual = (mini['talla'] != null && tallas.contains(mini['talla']))
-        ? mini['talla']
-        : null;
+    final tallaActual =
+        (mini['talla'] != null && tallas.contains(mini['talla']))
+            ? mini['talla']
+            : null;
     final tacoActual = (mini['taco'] != null && tacos.contains(mini['taco']))
         ? mini['taco']
         : null;
@@ -613,8 +627,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                           .map((t) => DropdownMenuItem(
                               value: t, child: Text(t.toString())))
                           .toList(),
-                      onChanged: (v) =>
-                          setState(() => mini['taco'] = v ?? 0),
+                      onChanged: (v) => setState(() => mini['taco'] = v ?? 0),
                     ),
                   ),
                 ],
@@ -639,12 +652,17 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                   ),
                   value: plataformaActual,
                   items: opcionesPlataforma
-                      .map((opcion) => DropdownMenuItem(
+                      .map((opcion) => DropdownMenuItem<String>(
                             value: opcion,
                             child: Text(opcion),
                           ))
                       .toList(),
-                  onChanged: (v) => setState(() => mini['plataforma'] = v),
+                  onChanged: (String? v) {
+                    setState(() {
+                      // Asignación explícita para evitar inferencias incorrectas de tipo
+                      mini['plataforma'] = v;
+                    });
+                  },
                 ),
               ),
           ],
@@ -661,9 +679,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12)
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -737,30 +753,44 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 label: const Text('Agregar Talla/Cantidad'),
                 onPressed: () {
                   final totalColor = (bloque['cantidad_color'] ?? 0) as int;
+
+                  // 1. Validar que el bloque tenga un 'Total Color' asignado
                   if (totalColor <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Primero ingresa la cantidad total para este color')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Primero ingresa la cantidad total para este color')),
+                    );
                     return;
                   }
 
-                  // 🔹 REGLA DE LÍMITE: No exceder la cantidad total por color
+                  // 2. Restricción visual: No tener más mini-subfilas que las unidades permitidas por ese color
                   if (miniSubfilas.length >= totalColor) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('No puede exceder la cantidad total')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'No puede exceder la cantidad total para este color')),
+                    );
                     return;
                   }
 
+                  // 3. Restricción visual: Si la suma de las cantidades de las mini-subfilas ya igualó el Total Color
                   final totalActualMini = miniSubfilas.fold<int>(
-                      0, (sum, m) => sum + ((m['cantidad'] ?? 0) as int));
+                    0,
+                    (sum, m) => sum + ((m['cantidad'] ?? 0) as int),
+                  );
 
                   if (totalActualMini >= totalColor) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Ya suman la cantidad total')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text(
+                              'Las tallas agregadas ya suman el total asignado a este color')),
+                    );
                     return;
                   }
 
                   setState(() {
-                    miniSubfilas.add({
+                    miniSubfilas.add(<String, dynamic>{
                       'cantidad': 0,
                       'talla': 0,
                       'taco': 0,
@@ -837,12 +867,15 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
       bool coincideMiniSubfilas = true;
 
-      if (_filtroTalla != null || _filtroTaco != null || _filtroPlataforma != null) {
+      if (_filtroTalla != null ||
+          _filtroTaco != null ||
+          _filtroPlataforma != null) {
         coincideMiniSubfilas = miniSubfilas.any((sub) {
           final bool coincideTalla =
               _filtroTalla == null || sub['talla'] == _filtroTalla;
-          final bool coincideTaco =
-              !_tipoTieneTaco || _filtroTaco == null || sub['taco'] == _filtroTaco;
+          final bool coincideTaco = !_tipoTieneTaco ||
+              _filtroTaco == null ||
+              sub['taco'] == _filtroTaco;
           final bool coincidePlataforma = !_tipoTienePlataforma ||
               _filtroPlataforma == null ||
               sub['plataforma'] == _filtroPlataforma;
@@ -860,16 +893,20 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     final int visibles = subfilasFiltradasIndices.length;
     final int ocultas = totalSubfilas - visibles;
 
-    final List<int> indicesInvertidos = subfilasFiltradasIndices.reversed.toList();
+    // 🔹 CAMBIO 1: Invierte la lista de índices para mostrar el último agregado primero (arriba)
+    final List<int> indicesOrdenadosVisualmente =
+        subfilasFiltradasIndices.reversed.toList();
 
     final int inicio = (_paginaActual - 1) * _itemsPorPagina;
-    final int fin = (inicio + _itemsPorPagina < indicesInvertidos.length)
-        ? inicio + _itemsPorPagina
-        : indicesInvertidos.length;
+    final int fin =
+        (inicio + _itemsPorPagina < indicesOrdenadosVisualmente.length)
+            ? inicio + _itemsPorPagina
+            : indicesOrdenadosVisualmente.length;
 
-    final List<int> indicesPaginados = (inicio < indicesInvertidos.length)
-        ? indicesInvertidos.sublist(inicio, fin)
-        : [];
+    final List<int> indicesPaginados =
+        (inicio < indicesOrdenadosVisualmente.length)
+            ? indicesOrdenadosVisualmente.sublist(inicio, fin)
+            : [];
 
     return Scaffold(
       appBar: Designwidgets().appBarMain("Agregado por Color"),
@@ -915,7 +952,11 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
               const SizedBox(height: 12),
               _buildSeccionFiltros(visibles, totalSubfilas),
               const SizedBox(height: 12),
-              ...indicesPaginados.map((index) => _buildBloqueColorItem(index)),
+              // 🔹 CAMBIO 2: Asigna una ValueKey a cada bloque basado en el ítem real para evitar reuso incorrecto del estado
+              ...indicesPaginados.map((index) => KeyedSubtree(
+                    key: ValueKey(_subfilasColor[index]),
+                    child: _buildBloqueColorItem(index),
+                  )),
               _buildPaginacionVisual(visibles),
               _buildBannerOcultas(ocultas),
               const SizedBox(height: 12),
@@ -937,8 +978,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                       return;
                     }
 
-                    final sumaTotalesColor = _subfilasColor.fold<int>(
-                        0, (sum, b) => sum + ((b['cantidad_color'] ?? 0) as int));
+                    final sumaTotalesColor = _subfilasColor.fold<int>(0,
+                        (sum, b) => sum + ((b['cantidad_color'] ?? 0) as int));
 
                     if (sumaTotalesColor >= _cantidadFila) {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
