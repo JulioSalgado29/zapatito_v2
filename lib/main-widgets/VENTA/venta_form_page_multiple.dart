@@ -184,12 +184,24 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                 .where((c) => c > 0),
           );
 
-          final rawTallas = data['tallas_disponibles'] ?? data['tallas'] ?? [];
-          item.tallasDisponibles = List<int>.from(
-            (rawTallas as List)
-                .map((t) => int.tryParse(t.toString()) ?? 0)
-                .where((t) => t > 0),
-          );
+          print(data);
+          final rawTallas = data['tallas_disponibles'];
+
+          if (item.calzadoId != null && rawTallas == null) {
+            item.tallasDisponibles = [];
+            item.tallaSeleccionada = null;
+          } else {
+            final listaBase = rawTallas ?? data['tallas'] ?? [];
+            item.tallasDisponibles = List<int>.from(
+              (listaBase as List)
+                  .map((t) => int.tryParse(t.toString()) ?? 0)
+                  .where((t) => t > 0),
+            );
+
+            if (item.tallasDisponibles.isEmpty) {
+              item.tallaSeleccionada = null;
+            }
+          }
 
           final rawColores =
               data['colores_disponibles'] ?? data['colores'] ?? [];
@@ -373,37 +385,46 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildDropdownTalla(int index) {
     var item = _itemsVenta[index];
 
-    final listadoTallas = item.tallasDisponibles.isNotEmpty
+    // Si ya seleccionó un calzado, se respeta ÚNICAMENTE su lista de tallas (aunque esté vacía).
+    // Si NO ha seleccionado calzado, se muestran todas las tallas del inventario general.
+    final listadoTallas = item.calzadoId != null
         ? item.tallasDisponibles
-        : _tallasInventario; // Lista poblada por la llamada inicial a la API
+        : _tallasInventario;
+
+    final estaHabilitado = listadoTallas.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: DropdownButtonFormField<int>(
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Talla',
-          border: OutlineInputBorder(),
-          hintText: 'Seleccione talla',
+          border: const OutlineInputBorder(),
+          hintText: item.calzadoId != null && listadoTallas.isEmpty
+              ? 'Sin tallas disponibles'
+              : 'Seleccione talla',
         ),
+        // Si el listado no contiene la talla elegida previamente, pasa a null
         value: listadoTallas.contains(item.tallaSeleccionada)
             ? item.tallaSeleccionada
+            : null,
+        // Si no hay tallas disponibles para ese calzado, deshabilitamos el Dropdown (onChanged: null)
+        onChanged: estaHabilitado
+            ? (v) {
+                if (v == null) return;
+                setState(() {
+                  item.tallaSeleccionada = v;
+                  item.colorSeleccionado = null;
+                  item.tacoSeleccionado = null;
+                  item.plataformaSeleccionada = null;
+                  item.cantidadVenta = 0;
+                  item.cantidadController.clear();
+                });
+                _actualizarStockCascada(index);
+              }
             : null,
         items: listadoTallas
             .map((t) => DropdownMenuItem(value: t, child: Text(t.toString())))
             .toList(),
-        // Habilitado SIEMPRE (tenga o no calzado seleccionado)
-        onChanged: (v) {
-          if (v == null) return;
-          setState(() {
-            item.tallaSeleccionada = v;
-            item.colorSeleccionado = null;
-            item.tacoSeleccionado = null;
-            item.plataformaSeleccionada = null;
-            item.cantidadVenta = 0;
-            item.cantidadController.clear();
-          });
-          _actualizarStockCascada(index);
-        },
       ),
     );
   }
@@ -411,7 +432,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildDropdownColor(int index) {
     var item = _itemsVenta[index];
     if (!item.tipoTieneColores ||
-        item.tallaSeleccionada == null ||
+        item.tallaSeleccionada == null || item.calzadoId == null ||
         item.coloresDisponibles.isEmpty) {
       return const SizedBox();
     }
@@ -505,7 +526,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildMetodoYLugar(int index) {
     var item = _itemsVenta[index];
 
-    bool listo = item.tallaSeleccionada != null &&
+    bool listo = item.tallaSeleccionada != null && item.calzadoId != null &&
         (!item.tipoTieneColores || item.colorSeleccionado != null) &&
         (!item.tipoTieneTaco || item.tacoSeleccionado != null) &&
         (!item.tipoTienePlataforma || item.plataformaSeleccionada != null);
@@ -560,7 +581,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Widget _buildCantidadYPrecio(int index) {
     var item = _itemsVenta[index];
-    bool listo = item.tallaSeleccionada != null &&
+    bool listo = item.tallaSeleccionada != null && item.calzadoId != null &&
         (!item.tipoTieneColores || item.colorSeleccionado != null) &&
         (!item.tipoTieneTaco || item.tacoSeleccionado != null) &&
         (!item.tipoTienePlataforma || item.plataformaSeleccionada != null);
