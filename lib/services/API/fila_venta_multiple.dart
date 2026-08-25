@@ -36,22 +36,35 @@ class FilaVentaMultipleService {
   // 2. Consultar stock y opciones disponibles en cascada
   // GET /api/fila_venta_multiple/stock-cascada/:id_calzado/:id_inventario?talla=...&colores=...&taco=...
   static Future<Map<String, dynamic>?> consultarStockCascada({
-    
-    required dynamic idCalzado,
     required dynamic idInventario,
+    dynamic idCalzado,
     int? talla,
     String? colores,
     int? taco,
   }) async {
     try {
+      final intIdInventario = int.tryParse(idInventario?.toString() ?? '');
+
+      if (intIdInventario == null) {
+        print('Error en Flutter: idInventario ($idInventario) no es válido.');
+        return null;
+      }
+
       final queryParams = <String, String>{};
+      
+      // Si ya hay un calzado seleccionado, lo agregamos como queryParam
+      if (idCalzado != null && idCalzado.toString() != 'null') {
+        queryParams['id_calzado'] = idCalzado.toString();
+      }
       if (talla != null) queryParams['talla'] = talla.toString();
-      if (colores != null && colores.isNotEmpty) queryParams['colores'] = colores;
+      if (colores != null && colores.trim().isNotEmpty) queryParams['colores'] = colores.trim();
       if (taco != null) queryParams['taco'] = taco.toString();
 
       final uri = Uri.parse(
-        '${ApiService.baseUrl}/api/fila_venta_multiple/stock-cascada/${Uri.encodeComponent(idCalzado.toString())}/${Uri.encodeComponent(idInventario.toString())}',
+        '${ApiService.baseUrl}/api/fila_venta_multiple/stock-cascada/$intIdInventario',
       ).replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+
+      print('GET URL Cascading: $uri');
 
       final response = await http.get(
         uri,
@@ -59,8 +72,7 @@ class FilaVentaMultipleService {
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return data;
+        return json.decode(response.body) as Map<String, dynamic>;
       } else {
         print('Error al consultar stock en cascada. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
@@ -71,7 +83,6 @@ class FilaVentaMultipleService {
       return null;
     }
   }
-
   // 3. Registrar Venta Múltiple en lote (Batch)
   // POST /api/fila_venta_multiple/batch
   static Future<bool> registrarVentaMultiple({
