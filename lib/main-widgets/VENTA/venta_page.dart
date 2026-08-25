@@ -479,7 +479,7 @@ class _VentaPageState extends State<VentaPage> {
                       const SizedBox(width: 8),
                       Expanded(
                           child: Text(
-                              _formatFechaLarga(filaData['fecha_creacion']),
+                              _formatFechaLarga(filaData['fecha_venta']),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade800,
