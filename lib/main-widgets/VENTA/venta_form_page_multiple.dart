@@ -15,6 +15,7 @@ class VentaItem {
   int cantidadVenta = 0;
   double precioVentaTotal = 0.0;
   bool cargandoStock = false;
+  List<int> calzadosDisponibles = [];
   List<int> tallasDisponibles = [];
   List<int> tacosDisponibles = [];
   List<String> coloresDisponibles = [];
@@ -175,6 +176,14 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           item.stockDisponible =
               (data['stock_disponible'] ?? data['stock'] ?? 0) as int;
 
+          final rawCalzados =
+              data['calzados_disponibles'] ?? data['calzados'] ?? [];
+          item.calzadosDisponibles = List<int>.from(
+            (rawCalzados as List)
+                .map((c) => int.tryParse(c.toString()) ?? 0)
+                .where((c) => c > 0),
+          );
+
           final rawTallas = data['tallas_disponibles'] ?? data['tallas'] ?? [];
           item.tallasDisponibles = List<int>.from(
             (rawTallas as List)
@@ -307,15 +316,23 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     final item = _itemsVenta[index];
 
-    // Si hay tallas o atributos filtrando calzados desde el backend, se usará esa lista;
-    // de lo contrario, se muestra la lista general de calzados.
+    final calzadosFiltrados = item.calzadosDisponibles.isNotEmpty
+        ? _listaCalzados.where((c) {
+            final id = int.tryParse(c['id_calzado'].toString());
+            return item.calzadosDisponibles.contains(id);
+          }).toList()
+        : _listaCalzados;
+
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
         labelText: 'Calzado',
         border: OutlineInputBorder(),
       ),
-      value: item.calzadoId,
-      items: _listaCalzados.map((calzado) {
+      value: calzadosFiltrados
+              .any((c) => c['id_calzado'].toString() == item.calzadoId)
+          ? item.calzadoId
+          : null,
+      items: calzadosFiltrados.map((calzado) {
         final idStr = calzado['id_calzado'].toString();
         final icono = calzado['icono'];
         return DropdownMenuItem(
