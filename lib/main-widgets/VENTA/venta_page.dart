@@ -23,8 +23,10 @@ class VentaPage extends StatefulWidget {
 class _VentaPageState extends State<VentaPage> {
   DateTime _fechaFiltro = DateTime.now();
 
-  // 🔹 Estado de Carga / Splash
+  // 🔹 Estado de Carga / Data local
   bool _isLoading = true;
+  bool _isFetchingVentas = false;
+  List<Map<String, dynamic>> _ventas = [];
 
   // 🔹 Controladores y variables para el Buscador
   bool _isSearching = false;
@@ -47,6 +49,11 @@ class _VentaPageState extends State<VentaPage> {
     // Redirección si no hay inventario
     InventarioService.validarYRedirigir(context, widget.inventarioId);
 
+    // Carga inicial de datos una sola vez al entrar a la vista
+    if (widget.inventarioId != null) {
+      await _cargarVentas();
+    }
+
     // Mantenemos el SplashScreen visible un breve momento para suavizar la transición
     await Future.delayed(const Duration(milliseconds: 600));
 
@@ -54,6 +61,32 @@ class _VentaPageState extends State<VentaPage> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // 🔹 Carga manual de datos al renderizar o tras eventos de cambio
+  Future<void> _cargarVentas() async {
+    if (widget.inventarioId == null) return;
+    if (mounted) setState(() => _isFetchingVentas = true);
+
+    try {
+      final data = await FilaVentaService.obtenerPorInventario(
+        widget.inventarioId!,
+        fechaFiltro: _fechaFiltro,
+      );
+      if (mounted) {
+        setState(() {
+          _ventas = data;
+          _isFetchingVentas = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _ventas = [];
+          _isFetchingVentas = false;
+        });
+      }
     }
   }
 
@@ -164,19 +197,25 @@ class _VentaPageState extends State<VentaPage> {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
       if (exito) {
-        setState(() {}); // Refrescar lista tras eliminar
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(esMuestra
-                ? 'Muestra eliminada.'
-                : 'Venta eliminada y stock restaurado.')));
+        await _cargarVentas(); // Refrescar lista tras eliminar
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(esMuestra
+                  ? 'Muestra eliminada.'
+                  : 'Venta eliminada y stock restaurado.')));
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error al procesar la eliminación.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Error al procesar la eliminación.')));
+        }
       }
     } catch (e) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
+      }
     }
   }
 
@@ -190,6 +229,7 @@ class _VentaPageState extends State<VentaPage> {
     );
     if (picked != null && picked != _fechaFiltro) {
       setState(() => _fechaFiltro = picked);
+      await _cargarVentas();
     }
   }
 
@@ -206,6 +246,37 @@ class _VentaPageState extends State<VentaPage> {
     } catch (e) {
       return 'Fecha no válida';
     }
+  }
+
+  Widget _buildContenidoVentas(bool esHoy) {
+    if (_isFetchingVentas) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_ventas.isEmpty) {
+      return Center(
+          child: Text(esHoy
+              ? 'Aún no hay ventas registradas hoy.'
+              : 'No hay ventas para esta fecha.'));
+    }
+
+    // 🔹 Lógica de Filtro por Buscador sobre la data ya cargada
+    final filas = _ventas.where((fila) {
+      if (_searchQuery.isEmpty) return true;
+      final nombreCalzado =
+          (fila['calzado_nombre'] ?? '').toString().toLowerCase();
+      return nombreCalzado.contains(_searchQuery);
+    }).toList();
+
+    if (filas.isEmpty) {
+      return const Center(child: Text('No se encontraron coincidencias.'));
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 10, bottom: 150),
+      itemCount: filas.length,
+      itemBuilder: (context, index) => _buildVentaCard(filas[index]),
+    );
   }
 
   @override
@@ -262,7 +333,10 @@ class _VentaPageState extends State<VentaPage> {
                 onPressed: () => setState(() => _isSearching = true)),
             IconButton(
                 icon: const Icon(Icons.today),
-                onPressed: () => setState(() => _fechaFiltro = DateTime.now())),
+                onPressed: () async {
+                  setState(() => _fechaFiltro = DateTime.now());
+                  await _cargarVentas();
+                }),
             IconButton(
                 icon: const Icon(Icons.calendar_month),
                 onPressed: () => _seleccionarFecha(context)),
@@ -300,46 +374,7 @@ class _VentaPageState extends State<VentaPage> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: FilaVentaService.obtenerPorInventario(
-                  widget.inventarioId!,
-                  fechaFiltro: _fechaFiltro,
-                ),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return const Center(child: Text('Error de conexión.'));
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return Center(
-                        child: Text(esHoy
-                            ? 'Aún no hay ventas registradas hoy.'
-                            : 'No hay ventas para esta fecha.'));
-                  }
-
-                  // 🔹 Lógica de Filtro por Buscador
-                  final filas = snapshot.data!.where((fila) {
-                    if (_searchQuery.isEmpty) return true;
-                    final nombreCalzado =
-                        (fila['calzado_nombre'] ?? '').toString().toLowerCase();
-                    return nombreCalzado.contains(_searchQuery);
-                  }).toList();
-
-                  if (filas.isEmpty) {
-                    return const Center(
-                        child: Text('No se encontraron coincidencias.'));
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.only(top: 10, bottom: 150),
-                    itemCount: filas.length,
-                    itemBuilder: (context, index) =>
-                        _buildVentaCard(filas[index]),
-                  );
-                },
-              ),
+              child: _buildContenidoVentas(esHoy),
             ),
           ],
         ),
@@ -520,7 +555,7 @@ class _VentaPageState extends State<VentaPage> {
                                       inventarioId: widget.inventarioId,
                                       ventaId: filaId,
                                       datosEdicion: filaData)));
-                          if (res == true) setState(() {});
+                          if (res == true) await _cargarVentas();
                         },
                         icon: const Icon(Icons.edit, color: Colors.blue),
                         label: const Text('Editar'),
@@ -578,7 +613,7 @@ class _VentaPageState extends State<VentaPage> {
                 firstName: widget.firstName,
                 emailUser: widget.emailUser,
                 inventarioId: widget.inventarioId)));
-    if (res == true) setState(() {});
+    if (res == true) await _cargarVentas();
   }
 
   void _navegarFormularioMuestra() async {
@@ -589,7 +624,7 @@ class _VentaPageState extends State<VentaPage> {
                 firstName: widget.firstName,
                 emailUser: widget.emailUser,
                 inventarioId: widget.inventarioId)));
-    if (res == true) setState(() {});
+    if (res == true) await _cargarVentas();
   }
 
   Widget _buildFab(

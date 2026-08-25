@@ -19,10 +19,6 @@ class FilaVentaService {
             DateFormat('yyyy-MM-dd').format(fechaFiltro.toLocal());
         queryParams = '?fecha=$fechaFormateada';
       }
-
-      print(queryParams.isNotEmpty
-          ? 'Obteniendo filas de venta para inventario $idInventario con fecha $queryParams'
-          : 'Obteniendo filas de venta para inventario $idInventario sin filtro de fecha');
       final url = Uri.parse(
         '${ApiService.baseUrl}/api/fila_venta/inventario/${Uri.encodeComponent(idInventario)}$queryParams',
       );
