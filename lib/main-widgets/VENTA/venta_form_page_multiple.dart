@@ -84,7 +84,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Future<void> _cargarCalzados() async {
     try {
-      final data = await CalzadoService.obtenerPorInventario(widget.inventarioId);
+      final data =
+          await CalzadoService.obtenerPorInventario(widget.inventarioId);
       if (mounted) {
         setState(() {
           _listaCalzados = data;
@@ -152,24 +153,31 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
       if (data != null && mounted) {
         setState(() {
-          item.stockDisponible = (data['stock_disponible'] ?? data['stock'] ?? 0) as int;
+          item.stockDisponible =
+              (data['stock_disponible'] ?? data['stock'] ?? 0) as int;
 
           final rawTallas = data['tallas_disponibles'] ?? data['tallas'] ?? [];
           item.tallasDisponibles = List<int>.from(
-            (rawTallas as List).map((t) => int.tryParse(t.toString()) ?? 0).where((t) => t > 0),
+            (rawTallas as List)
+                .map((t) => int.tryParse(t.toString()) ?? 0)
+                .where((t) => t > 0),
           );
 
-          final rawColores = data['colores_disponibles'] ?? data['colores'] ?? [];
+          final rawColores =
+              data['colores_disponibles'] ?? data['colores'] ?? [];
           item.coloresDisponibles = List<String>.from(
             (rawColores as List).map((c) => c.toString()),
           );
 
           final rawTacos = data['tacos_disponibles'] ?? data['tacos'] ?? [];
           item.tacosDisponibles = List<int>.from(
-            (rawTacos as List).map((t) => int.tryParse(t.toString()) ?? 0).where((t) => t > 0),
+            (rawTacos as List)
+                .map((t) => int.tryParse(t.toString()) ?? 0)
+                .where((t) => t > 0),
           );
 
-          final rawPlataformas = data['plataformas_disponibles'] ?? data['plataformas'] ?? [];
+          final rawPlataformas =
+              data['plataformas_disponibles'] ?? data['plataformas'] ?? [];
           item.plataformasDisponibles = List<String>.from(
             (rawPlataformas as List).map((p) => p.toString()),
           );
@@ -193,7 +201,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   void _notificarDuplicado(int index) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Esta combinación de producto ya existe en la lista de venta.'),
+        content: Text(
+            'Esta combinación de producto ya existe en la lista de venta.'),
         backgroundColor: Colors.orange,
         duration: Duration(seconds: 2),
       ),
@@ -209,58 +218,62 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   }
 
   Future<void> _realizarVenta() async {
-  if (!_itemsVenta.every((i) =>
-      i.calzadoId != null &&
-      i.tallaSeleccionada != null &&
-      i.metodoPagoSeleccionado != null &&
-      i.lugarVentaSeleccionado != null &&
-      i.cantidadVenta > 0 &&
-      i.cantidadVenta <= i.stockDisponible)) return;
+    if (!_itemsVenta.every((i) =>
+        i.calzadoId != null &&
+        i.tallaSeleccionada != null &&
+        i.metodoPagoSeleccionado != null &&
+        i.lugarVentaSeleccionado != null &&
+        i.cantidadVenta > 0 &&
+        i.cantidadVenta <= i.stockDisponible)) return;
 
-  _mostrarSplashScreen();
-  try {
-    final List<Map<String, dynamic>> itemsPayload = _itemsVenta.map((item) {
-      return {
-        // CAMBIO AQUÍ: Usar 'id_calzado' para coincidir con la API
-        'id_calzado': item.calzadoId, 
-        'talla': item.tallaSeleccionada,
-        'taco': item.tipoTieneTaco ? (item.tacoSeleccionado ?? 0) : 0,
-        'colores': item.tipoTieneColores ? (item.colorSeleccionado ?? '') : '',
-        'plataforma': item.tipoTienePlataforma ? (item.plataformaSeleccionada ?? '') : '',
-        'cantidad': item.cantidadVenta,
-        'precio_venta_total': item.precioVentaTotal,
-        'metodo_pago': item.metodoPagoSeleccionado,
-        'lugar_venta': item.lugarVentaSeleccionado,
-      };
-    }).toList();
+    _mostrarSplashScreen();
+    try {
+      final List<Map<String, dynamic>> itemsPayload = _itemsVenta.map((item) {
+        return {
+          // CAMBIO AQUÍ: Usar 'id_calzado' para coincidir con la API
+          'id_calzado': item.calzadoId,
+          'talla': item.tallaSeleccionada,
+          'taco': item.tipoTieneTaco ? (item.tacoSeleccionado ?? 0) : 0,
+          'colores':
+              item.tipoTieneColores ? (item.colorSeleccionado ?? '') : '',
+          'plataforma': item.tipoTienePlataforma
+              ? (item.plataformaSeleccionada ?? '')
+              : '',
+          'cantidad': item.cantidadVenta,
+          'precio_venta_total': item.precioVentaTotal,
+          'metodo_pago': item.metodoPagoSeleccionado,
+          'lugar_venta': item.lugarVentaSeleccionado,
+        };
+      }).toList();
 
-    final exito = await FilaVentaMultipleService.registrarVentaMultiple(
-      idInventario: widget.inventarioId ?? '',
-      usuarioCreacion: widget.firstName ?? 'anon',
-      emailUser: widget.emailUser ?? 'anon',
-      items: itemsPayload,
-    );
+      final exito = await FilaVentaMultipleService.registrarVentaMultiple(
+        idInventario: widget.inventarioId ?? '',
+        usuarioCreacion: widget.firstName ?? 'anon',
+        emailUser: widget.emailUser ?? 'anon',
+        items: itemsPayload,
+      );
 
-    _ocultarSplashScreen();
+      _ocultarSplashScreen();
 
-    if (exito) {
-      if (mounted) Navigator.pop(context, true);
-    } else {
+      if (exito) {
+        if (mounted) Navigator.pop(context, true);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error al registrar la venta.')),
+          );
+        }
+      }
+    } catch (e) {
+      _ocultarSplashScreen();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al registrar la venta.')),
+          SnackBar(content: Text('Error de conexión: $e')),
         );
       }
     }
-  } catch (e) {
-    _ocultarSplashScreen();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error de conexión: $e')),
-      );
-    }
   }
-}
+
   void _mostrarSplashScreen() => showDialog(
       context: context,
       barrierDismissible: false,
@@ -273,7 +286,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Widget _buildDropdownCalzado(int index) {
     if (_cargandoCalzados) return const LinearProgressIndicator();
-    
+
     final item = _itemsVenta[index];
 
     return DropdownButtonFormField<String>(
@@ -284,31 +297,33 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         final idStr = calzado['id_calzado'].toString();
         final icono = calzado['icono'];
         return DropdownMenuItem(
-            value: idStr,
-            child: Row(
-              children: [
-                if (icono != null && icono.isNotEmpty)
-                  Image.asset(
-                    icono,
-                    width: 24,
-                    height: 24,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.image_not_supported, size: 24),
-                  ),
-                const SizedBox(width: 8),
-                Text(calzado['nombre'] ?? 'S/N'),
-              ],
-            ),
-          );
-        }).toList(),
+          value: idStr,
+          child: Row(
+            children: [
+              if (icono != null && icono.isNotEmpty)
+                Image.asset(
+                  icono,
+                  width: 24,
+                  height: 24,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, size: 24),
+                ),
+              const SizedBox(width: 8),
+              Text(calzado['nombre'] ?? 'S/N'),
+            ],
+          ),
+        );
+      }).toList(),
       onChanged: (v) {
         if (v == null) return;
-        final calzadoSel = _listaCalzados.firstWhere((c) => c['id_calzado'].toString() == v);
-        
+        final calzadoSel =
+            _listaCalzados.firstWhere((c) => c['id_calzado'].toString() == v);
+
         setState(() {
           _itemsVenta[index].calzadoId = v;
           _itemsVenta[index].tipoTieneTaco = calzadoSel['taco'] ?? false;
-          _itemsVenta[index].tipoTienePlataforma = calzadoSel['plataforma'] ?? false;
+          _itemsVenta[index].tipoTienePlataforma =
+              calzadoSel['plataforma'] ?? false;
           _itemsVenta[index].tipoTieneColores = calzadoSel['colores'] ?? false;
 
           _itemsVenta[index].tallaSeleccionada = null;
@@ -490,7 +505,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
               decoration: const InputDecoration(
                 labelText: 'Método de Pago',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               ),
               value: item.metodoPagoSeleccionado,
               items: _metodosPago
@@ -508,7 +524,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
               decoration: const InputDecoration(
                 labelText: 'Lugar de Venta',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               ),
               value: item.lugarVentaSeleccionado,
               items: _lugaresVenta
@@ -561,7 +578,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           Expanded(
             child: TextFormField(
               controller: item.precioController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
@@ -617,10 +635,12 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Venta #${index + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                           if (_itemsVenta.length > 1)
                             IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => _eliminarItem(index)),
                         ]),
                     const Divider(),
@@ -648,7 +668,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     var item = _itemsVenta[index];
     return Container(
       padding: const EdgeInsets.all(8),
-      color: item.stockDisponible > 0 ? Colors.green.shade50 : Colors.red.shade50,
+      color:
+          item.stockDisponible > 0 ? Colors.green.shade50 : Colors.red.shade50,
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         const Text('Stock disponible:'),
         item.cargandoStock
@@ -659,7 +680,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
             : Text('${item.stockDisponible} unidades',
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: item.stockDisponible > 0 ? Colors.green : Colors.red)),
+                    color:
+                        item.stockDisponible > 0 ? Colors.green : Colors.red)),
       ]),
     );
   }
