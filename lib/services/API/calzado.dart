@@ -6,32 +6,35 @@ class CalzadoService {
   // 1. Obtener la lista de calzados activos por ID de inventario
   // GET /api/calzado/inventario/:id_inventario
   static Future<List<Map<String, dynamic>>> obtenerPorInventario(
-    String? idInventario,
-  ) async {
-    try {
-      final idStr = idInventario.toString();
-      final url = Uri.parse(
-        '${ApiService.baseUrl}/api/calzado/inventario/${Uri.encodeComponent(idStr)}',
-      );
+  dynamic idInventario,
+) async {
+  try {
+    if (idInventario == null) return [];
+    
+    // Lo convertimos siempre a String de forma segura
+    final String idStr = idInventario.toString();
+    
+    final url = Uri.parse(
+      '${ApiService.baseUrl}/api/calzado/inventario/${Uri.encodeComponent(idStr)}',
+    );
 
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return List<Map<String, dynamic>>.from(data);
-      } else {
-        print('Error al listar calzados. Status code: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      print('Error de red al listar calzados: $e');
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data);
+    } else {
+      print('Error al listar calzados. Status code: ${response.statusCode}');
       return [];
     }
+  } catch (e) {
+    print('Error de red al listar calzados: $e');
+    return [];
   }
-
+}
   // 1.b. Obtener la lista de calzados activos con colores = true por ID de inventario
   // GET /api/calzado/inventario/:id_inventario/colores
   static Future<List<Map<String, dynamic>>> obtenerPorInventarioConColores(

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
+import 'package:zapatito_v2/services/API/calzado.dart';
 
 class VentaFormPage extends StatefulWidget {
   final String? firstName;
@@ -42,7 +43,6 @@ class _VentaFormPageState extends State<VentaFormPage> {
   int _cantidadVenta = 0;
   double _precioVentaTotal = 0.0;
 
-  final Map<String, String?> _iconCache = {};
   final TextEditingController _cantidadController = TextEditingController();
   final TextEditingController _precioController = TextEditingController();
 
@@ -70,25 +70,16 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
   Future<void> _cargarDatosEdicion() async {
     final d = widget.datosEdicion!;
-    final String cId = d['calzado_id'];
+    final String cId = d['id_calzado'].toString();
 
-    // 1. Obtenemos datos del calzado (configuración de la UI)
-    final doc =
-        await FirebaseFirestore.instance.collection('calzado').doc(cId).get();
+    // 1. Obtenemos directamente el Map desde la API
+    final data = await CalzadoService.obtenerPorId(cId);
 
-    if (doc.exists) {
-      final data = doc.data()!;
-
-      // 2. Si la venta es una muestra, buscamos el nombre del dueño
-      if (d['muestra'] == true && d['dueno_muestra_id'] != null) {
-        final docDueno = await FirebaseFirestore.instance
-            .collection('dueno_muestra')
-            .doc(d['dueno_muestra_id'])
-            .get();
-
-        if (docDueno.exists) {
-          nombreDuenoMuestra = docDueno['nombre'];
-        }
+    // 2. Verificamos que la respuesta no sea nula
+    if (data != null) {
+      // Si la venta es una muestra, el nombre ya viene desde tu query SQL (dueno_muestra_nombre)
+      if (d['id_dueno_muestra'] != null) {
+        nombreDuenoMuestra = d['dueno_muestra_nombre'];
       }
 
       setState(() {
@@ -98,18 +89,25 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
         _calzadoId = cId;
         _tallaSeleccionada = d['talla'];
-        _colorSeleccionado = d['colores'] == '' ? null : d['colores'];
-        _tacoSeleccionado = d['taco'] == 0 ? null : d['taco'];
+        _colorSeleccionado = (d['colores'] == '' || d['colores'] == null)
+            ? null
+            : d['colores'].toString();
+        _tacoSeleccionado = (d['taco'] == 0 || d['taco'] == null)
+            ? null
+            : (d['taco'] as num).toInt();
         _plataformaSeleccionada =
-            d['plataforma'] == '' ? null : d['plataforma'];
+            (d['plataforma'] == '' || d['plataforma'] == null)
+                ? null
+                : d['plataforma'].toString();
         _cantidadVenta = d['cantidad'];
-        _precioVentaTotal = (d['precio_venta_total'] ?? 0.0).toDouble();
+        _precioVentaTotal =
+            double.tryParse(d['precio_venta_total'].toString()) ?? 0.0;
         _metodoPagoSeleccionado = d['metodo_pago'];
         _lugarVentaSeleccionado = d['lugar_venta'];
 
-        // Nuevos campos para el Dueño
-        esMuestra = d['muestra'] ?? false;
-        idDuenoMuestra = d['dueno_muestra_id'];
+        // Campos para el Dueño
+        esMuestra = d['id_dueno_muestra'] != null;
+        idDuenoMuestra = d['id_dueno_muestra']?.toString();
 
         _cantidadController.text = _cantidadVenta.toString();
         _precioController.text = _precioVentaTotal.toString();
@@ -264,42 +262,44 @@ class _VentaFormPageState extends State<VentaFormPage> {
   // UI COMPONENTS
   // -------------------------------------------------------
 
-  Future<String?> _obtenerIconoTipo(String id) async {
-    if (_iconCache.containsKey(id)) return _iconCache[id];
-    final snap = await FirebaseFirestore.instance
-        .collection('tipo_calzado')
-        .doc(id)
-        .get();
-    _iconCache[id] = snap.data()?['icono'];
-    return _iconCache[id];
-  }
+  Widget _buildDropdownCalzado(List<Map<String, dynamic>> calzados) {
+  print('Calzados disponibles: ${calzados.length}');
+  
+  return DropdownButtonFormField<String>(
+    decoration: const InputDecoration(
+      labelText: 'Seleccionar código',
+      border: OutlineInputBorder(),
+    ),
+    // Forzamos que _calzadoId sea String
+    value: _calzadoId?.toString(),
+    items: calzados.map((data) {
+      // .toString() evita que falle si id_calzado viene como int desde PostgreSQL
+      final String calzadoId = (data['id_calzado'] ?? data['calzado_id'] ?? '').toString();
+      final String? rutaIcono = data['icono'] ?? data['calzado_icono'];
 
-  Widget _buildDropdownCalzado(List<QueryDocumentSnapshot> calzados) {
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-          labelText: 'Seleccionar código', border: OutlineInputBorder()),
-      value: _calzadoId,
-      items: calzados.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return DropdownMenuItem<String>(
-          value: doc.id,
-          child: FutureBuilder<String?>(
-            future: _obtenerIconoTipo(data['tipo_calzado_id'] ?? ''),
-            builder: (context, iconSnapshot) {
-              final icono = iconSnapshot.data;
-              return Row(children: [
-                if (icono != null) Image.asset(icono, width: 32, height: 32),
-                const SizedBox(width: 8),
-                Text(data['nombre'] ?? ''),
-              ]);
-            },
-          ),
-        );
-      }).toList(),
-      onChanged: null, // Bloqueado por edición
-    );
-  }
-
+      return DropdownMenuItem<String>(
+        value: calzadoId,
+        child: Row(
+          children: [
+            if (rutaIcono != null && rutaIcono.isNotEmpty)
+              Image.asset(
+                rutaIcono,
+                width: 32,
+                height: 32,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.category, size: 32),
+              )
+            else
+              const Icon(Icons.category, size: 32),
+            const SizedBox(width: 8),
+            Text(data['nombre'] ?? ''),
+          ],
+        ),
+      );
+    }).toList(),
+    onChanged: null,
+  );
+}
   Widget _buildDropdownTalla() {
     if (_calzadoId == null) return const SizedBox();
     return Padding(
@@ -498,14 +498,21 @@ class _VentaFormPageState extends State<VentaFormPage> {
             children: [
               if (esMuestra) _buildDropdownDueno(),
               const SizedBox(height: 16),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('calzado')
-                    .where('id_inventario', isEqualTo: widget.inventarioId)
-                    .snapshots(),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future:
+                    CalzadoService.obtenerPorInventario(widget.inventarioId),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const LinearProgressIndicator();
-                  return _buildDropdownCalzado(snapshot.data!.docs);
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const LinearProgressIndicator();
+                  }
+
+                  if (snapshot.hasError ||
+                      !snapshot.hasData ||
+                      snapshot.data!.isEmpty) {
+                    return const Text('No se encontraron calzados');
+                  }
+
+                  return _buildDropdownCalzado(snapshot.data!);
                 },
               ),
               _buildDropdownTalla(),
