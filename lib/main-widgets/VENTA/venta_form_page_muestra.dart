@@ -18,7 +18,6 @@ class VentaItem {
   int cantidadVenta = 0;
   double precioVentaTotal = 0.0;
 
-  // 🔹 NUEVA ETIQUETA: Identificador de muestra
   bool muestra = true;
 
   bool tipoTieneTaco = false;
@@ -29,7 +28,6 @@ class VentaItem {
   String? lugarVentaSeleccionado;
 
   final TextEditingController cantidadController = TextEditingController();
-  // 🔹 El controlador nace vacío para evitar el 0.0 visual
   final TextEditingController precioController = TextEditingController();
 
   void dispose() {
@@ -43,8 +41,12 @@ class VentaFormPageMuestra extends StatefulWidget {
   final String? emailUser;
   final String? inventarioId;
 
-  const VentaFormPageMuestra(
-      {super.key, required this.firstName, this.emailUser, this.inventarioId});
+  const VentaFormPageMuestra({
+    super.key,
+    required this.firstName,
+    this.emailUser,
+    this.inventarioId,
+  });
 
   @override
   State<VentaFormPageMuestra> createState() => _VentaFormPageMuestraState();
@@ -52,6 +54,15 @@ class VentaFormPageMuestra extends StatefulWidget {
 
 class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   final List<VentaItem> _itemsVenta = [];
+
+  // Data general que solo se consulta 1 vez
+  List<Map<String, dynamic>> _duenosMuestra = [];
+  List<Map<String, dynamic>> _calzados = [];
+  
+  // Caché de detalles de calzado (para no reconsultar si ya se trajo una vez)
+  final Map<String, Map<String, dynamic>> _calzadoDetallesCache = {};
+
+  bool _cargandoInicial = true;
 
   final List<String> _metodosPago = [
     'Efectivo',
@@ -69,7 +80,38 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   @override
   void initState() {
     super.initState();
-    _agregarNuevoItem();
+    _cargarDatosIniciales();
+  }
+
+  // 🔹 Carga de data por única vez al iniciar la pantalla
+  Future<void> _cargarDatosIniciales() async {
+    if (widget.inventarioId == null) {
+      setState(() => _cargandoInicial = false);
+      return;
+    }
+
+    try {
+      final duenosFuturo =
+          DuenoMuestraService.obtenerPorInventario(widget.inventarioId!);
+      final calzadosFuturo =
+          CalzadoService.obtenerPorInventario(widget.inventarioId!);
+
+      final resultados = await Future.wait([duenosFuturo, calzadosFuturo]);
+
+      if (mounted) {
+        setState(() {
+          _duenosMuestra = resultados[0];
+          _calzados = resultados[1];
+          _cargandoInicial = false;
+        });
+        _agregarNuevoItem();
+      }
+    } catch (e) {
+      print('Error al cargar datos iniciales: $e');
+      if (mounted) {
+        setState(() => _cargandoInicial = false);
+      }
+    }
   }
 
   @override
@@ -96,45 +138,223 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   }
 
   Future<void> _realizarVenta() async {
-  _mostrarSplashScreen();
-  try {
-    for (var item in _itemsVenta) {
-      final ventaData = {
-        'id_inventario': widget.inventarioId,
-        'id_dueno_muestra': item.duenoMuestraId,
-        'id_calzado': item.calzadoId,
-        'talla': item.tallaSeleccionada,
-        'taco': item.tipoTieneTaco ? item.tacoSeleccionado ?? 0 : 0,
-        'colores': item.tipoTieneColores ? item.colorSeleccionado ?? '' : '',
-        'plataforma':
-            item.tipoTienePlataforma ? item.plataformaSeleccionada ?? '' : '',
-        'cantidad': item.cantidadVenta,
-        'precio_venta_total': item.precioVentaTotal,
-        'metodo_pago': item.metodoPagoSeleccionado,
-        'lugar_venta': item.lugarVentaSeleccionado,
-        'fecha_venta': DateTime.now().toIso8601String(),
-        'usuario_creacion': widget.firstName ?? 'anon',
-        'email_user': widget.emailUser ?? 'anon',
-        'muestra': item.muestra,
-      };
+    _mostrarSplashScreen();
+    try {
+      for (var item in _itemsVenta) {
+        final ventaData = {
+          'id_inventario': widget.inventarioId,
+          'id_dueno_muestra': item.duenoMuestraId,
+          'id_calzado': item.calzadoId,
+          'talla': item.tallaSeleccionada,
+          'taco': item.tipoTieneTaco ? item.tacoSeleccionado ?? 0 : 0,
+          'colores': item.tipoTieneColores ? item.colorSeleccionado ?? '' : '',
+          'plataforma':
+              item.tipoTienePlataforma ? item.plataformaSeleccionada ?? '' : '',
+          'cantidad': item.cantidadVenta,
+          'precio_venta_total': item.precioVentaTotal,
+          'metodo_pago': item.metodoPagoSeleccionado,
+          'lugar_venta': item.lugarVentaSeleccionado,
+          'fecha_venta': DateTime.now().toIso8601String(),
+          'usuario_creacion': widget.firstName ?? 'anon',
+          'email_user': widget.emailUser ?? 'anon',
+          'muestra': item.muestra,
+        };
 
-      final exito = await FilaVentaService.crearVenta(ventaData);
+        final exito = await FilaVentaService.crearVenta(ventaData);
 
-      if (!exito) {
-        throw Exception('No se pudo registrar la venta/muestra.');
+        if (!exito) {
+          throw Exception('No se pudo registrar la venta/muestra.');
+        }
+      }
+
+      _ocultarSplashScreen();
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      _ocultarSplashScreen();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
-
-    _ocultarSplashScreen();
-    if (mounted) Navigator.pop(context, true);
-  } catch (e) {
-    _ocultarSplashScreen();
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
   }
-}
+
+  Widget _buildDropdownDueno(int index) {
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+          labelText: 'Dueño de Muestra', border: OutlineInputBorder()),
+      value: _itemsVenta[index].duenoMuestraId,
+      items: _duenosMuestra
+          .map((item) => DropdownMenuItem(
+                value: item['id_dueno_muestra'].toString(),
+                child: Text(item['nombre'] ?? ''),
+              ))
+          .toList(),
+      onChanged: (v) => setState(() => _itemsVenta[index].duenoMuestraId = v),
+    );
+  }
+
+  Widget _buildDropdownCalzado(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: DropdownButtonFormField<String>(
+        decoration: const InputDecoration(
+            labelText: 'Calzado', border: OutlineInputBorder()),
+        value: _itemsVenta[index].calzadoId,
+        items: _calzados.map((data) {
+          final String idStr = data['id_calzado'].toString();
+          final String? icono = data['icono'];
+          return DropdownMenuItem(
+            value: idStr,
+            child: Row(
+              children: [
+                if (icono != null && icono.isNotEmpty)
+                  Image.asset(
+                    icono,
+                    width: 24,
+                    height: 24,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.image_not_supported, size: 24),
+                  ),
+                const SizedBox(width: 8),
+                Text(data['nombre'] ?? 'S/N'),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: (v) async {
+          if (v == null) return;
+          
+          Map<String, dynamic>? data;
+
+          // Si ya existe en caché, evitamos consultar la API de nuevo
+          if (_calzadoDetallesCache.containsKey(v)) {
+            data = _calzadoDetallesCache[v];
+          } else {
+            data = await CalzadoService.obtenerPorId(v);
+            if (data != null) {
+              _calzadoDetallesCache[v] = data;
+            }
+          }
+
+          if (data != null && mounted) {
+            setState(() {
+              var item = _itemsVenta[index];
+              item.calzadoId = v;
+              item.tipoTieneTaco = data!['taco'] ?? false;
+              item.tipoTienePlataforma = data['plataforma'] ?? false;
+              item.tipoTieneColores = data['colores'] ?? false;
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildCascadaAtributos(int index) {
+    var item = _itemsVenta[index];
+    if (item.calzadoId == null) return const SizedBox();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: DropdownButtonFormField<int>(
+            decoration: const InputDecoration(
+                labelText: 'Talla', border: OutlineInputBorder()),
+            value: item.tallaSeleccionada,
+            items: List.generate(11, (i) => i + 30)
+                .map((t) =>
+                    DropdownMenuItem(value: t, child: Text(t.toString())))
+                .toList(),
+            onChanged: (v) => setState(() => item.tallaSeleccionada = v),
+          ),
+        ),
+        if (item.tipoTieneColores)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: TextFormField(
+              decoration: const InputDecoration(
+                  labelText: 'Color',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.palette)),
+              onChanged: (v) => setState(() => item.colorSeleccionado = v),
+            ),
+          ),
+        if (item.tipoTieneTaco)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: DropdownButtonFormField<int>(
+              decoration: const InputDecoration(
+                  labelText: 'Taco (cm)', border: OutlineInputBorder()),
+              value: item.tacoSeleccionado,
+              items: [3, 5, 7, 9]
+                  .map((t) => DropdownMenuItem(value: t, child: Text('$t cm')))
+                  .toList(),
+              onChanged: (v) => setState(() => item.tacoSeleccionado = v),
+            ),
+          ),
+        if (item.tipoTienePlataforma)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                  labelText: 'Plataforma', border: OutlineInputBorder()),
+              value: item.plataformaSeleccionada,
+              items: ['Baja', 'Media', 'Alta']
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                  .toList(),
+              onChanged: (v) => setState(() => item.plataformaSeleccionada = v),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPagoYLugar(int index) {
+    var item = _itemsVenta[index];
+    if (item.calzadoId == null) return const SizedBox();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              decoration: const InputDecoration(
+                  labelText: 'Método de Pago',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+              value: item.metodoPagoSeleccionado,
+              items: _metodosPago
+                  .map((m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(m, overflow: TextOverflow.ellipsis)))
+                  .toList(),
+              onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              decoration: const InputDecoration(
+                  labelText: 'Lugar de Venta',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+              value: item.lugarVentaSeleccionado,
+              items: _lugaresVenta
+                  .map((l) => DropdownMenuItem(
+                      value: l,
+                      child: Text(l, overflow: TextOverflow.ellipsis)))
+                  .toList(),
+              onChanged: (v) => setState(() => item.lugarVentaSeleccionado = v),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildCantidadYPrecio(int index) {
     var item = _itemsVenta[index];
@@ -192,189 +412,11 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     );
   }
 
-  // ... (El resto del código del Scaffold y Footer se mantiene igual)
-
-  // (Implementación de placeholders para que el código sea funcional)
-  Widget _buildDropdownDueno(int index) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: DuenoMuestraService.obtenerPorInventario(widget.inventarioId!),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox();
-        return DropdownButtonFormField<String>(
-          decoration: const InputDecoration(
-              labelText: 'Dueño de Muestra', border: OutlineInputBorder()),
-          value: _itemsVenta[index].duenoMuestraId,
-          items: snapshot.data!
-              .map((item) => DropdownMenuItem(
-                    value: item['id_dueno_muestra'].toString(),
-                    child: Text(item['nombre']),
-                  ))
-              .toList(),
-          onChanged: (v) =>
-              setState(() => _itemsVenta[index].duenoMuestraId = v),
-        );
-      },
-    );
-  }
-
-  Widget _buildDropdownCalzado(int index) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: CalzadoService.obtenerPorInventario(widget.inventarioId!),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const LinearProgressIndicator();
-          return DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
-                labelText: 'Calzado', border: OutlineInputBorder()),
-            value: _itemsVenta[index].calzadoId,
-            items: snapshot.data!.map((data) {
-              final String idStr = data['id_calzado'].toString();
-              final String? icono = data['icono'];
-              return DropdownMenuItem(
-                value: idStr,
-                child: Row(
-                  children: [
-                    if (icono != null && icono.isNotEmpty)
-                      Image.asset(
-                        icono,
-                        width: 24,
-                        height: 24,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.image_not_supported, size: 24),
-                      ),
-                    const SizedBox(width: 8),
-                    Text(data['nombre'] ?? 'S/N'),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (v) async {
-              if (v == null) return;
-              final data = await CalzadoService.obtenerPorId(v);
-              if (data != null) {
-                setState(() {
-                  var item = _itemsVenta[index];
-                  item.calzadoId = v;
-                  item.tipoTieneTaco = data['taco'] ?? false;
-                  item.tipoTienePlataforma = data['plataforma'] ?? false;
-                  item.tipoTieneColores = data['colores'] ?? false;
-                });
-              }
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCascadaAtributos(int index) {
-    var item = _itemsVenta[index];
-    if (item.calzadoId == null) return const SizedBox();
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: DropdownButtonFormField<int>(
-            decoration: const InputDecoration(
-                labelText: 'Talla', border: OutlineInputBorder()),
-            items: List.generate(11, (i) => i + 30)
-                .map((t) =>
-                    DropdownMenuItem(value: t, child: Text(t.toString())))
-                .toList(),
-            onChanged: (v) => setState(() => item.tallaSeleccionada = v),
-          ),
-        ),
-        if (item.tipoTieneColores)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                  labelText: 'Color',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.palette)),
-              onChanged: (v) => setState(() => item.colorSeleccionado = v),
-            ),
-          ),
-        if (item.tipoTieneTaco)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: DropdownButtonFormField<int>(
-              decoration: const InputDecoration(
-                  labelText: 'Taco (cm)', border: OutlineInputBorder()),
-              items: [3, 5, 7, 9]
-                  .map((t) => DropdownMenuItem(value: t, child: Text('$t cm')))
-                  .toList(),
-              onChanged: (v) => setState(() => item.tacoSeleccionado = v),
-            ),
-          ),
-        if (item.tipoTienePlataforma)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                  labelText: 'Plataforma', border: OutlineInputBorder()),
-              items: ['Baja', 'Media', 'Alta']
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.plataformaSeleccionada = v),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPagoYLugar(int index) {
-    var item = _itemsVenta[index];
-    if (item.calzadoId == null) return const SizedBox();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              decoration: const InputDecoration(
-                  labelText: 'Método de Pago',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
-              value: item.metodoPagoSeleccionado,
-              items: _metodosPago
-                  .map((m) => DropdownMenuItem(
-                      value: m,
-                      child: Text(m, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              decoration: const InputDecoration(
-                  labelText: 'Lugar de Venta',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
-              value: item.lugarVentaSeleccionado,
-              items: _lugaresVenta
-                  .map((l) => DropdownMenuItem(
-                      value: l,
-                      child: Text(l, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.lugarVentaSeleccionado = v),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _mostrarSplashScreen() => showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const SplashScreen02());
+
   void _ocultarSplashScreen() =>
       Navigator.of(context, rootNavigator: true).canPop()
           ? Navigator.of(context, rootNavigator: true).pop()
@@ -382,6 +424,15 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cargandoInicial) {
+      return Scaffold(
+        appBar: Designwidgets().appBarMain('Nueva Venta Muestra'),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     bool puedeVenderTodo = _itemsVenta.isNotEmpty &&
         _itemsVenta.every((i) =>
             i.calzadoId != null &&

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
+import 'package:zapatito_v2/services/API/fila_venta.dart';
 
 class VentaFormPage extends StatefulWidget {
   final String? firstName;
@@ -26,6 +26,9 @@ class VentaFormPage extends StatefulWidget {
 }
 
 class _VentaFormPageState extends State<VentaFormPage> {
+  bool _cargandoInicial = true;
+  List<Map<String, dynamic>> _calzados = [];
+
   bool esMuestra = false;
   String? idDuenoMuestra;
   String? nombreDuenoMuestra;
@@ -68,50 +71,71 @@ class _VentaFormPageState extends State<VentaFormPage> {
     _cargarDatosEdicion();
   }
 
+  // 🔹 Recolección asíncrona única al inicializar el widget
   Future<void> _cargarDatosEdicion() async {
+    if (widget.datosEdicion == null) {
+      if (mounted) setState(() => _cargandoInicial = false);
+      return;
+    }
+
     final d = widget.datosEdicion!;
     final String cId = d['id_calzado'].toString();
 
-    // 1. Obtenemos directamente el Map desde la API
-    final data = await CalzadoService.obtenerPorId(cId);
+    try {
+      // 1. Obtenemos calzados del inventario y el detalle del calzado a editar en paralelo
+      final calzadosFuture = CalzadoService.obtenerPorInventario(widget.inventarioId);
+      final detalleCalzadoFuture = CalzadoService.obtenerPorId(cId);
 
-    // 2. Verificamos que la respuesta no sea nula
-    if (data != null) {
-      // Si la venta es una muestra, el nombre ya viene desde tu query SQL (dueno_muestra_nombre)
+      final resultados = await Future.wait([calzadosFuture, detalleCalzadoFuture]);
+
+      final listaCalzados = resultados[0] as List<Map<String, dynamic>>;
+      final data = resultados[1] as Map<String, dynamic>?;
+
       if (d['id_dueno_muestra'] != null) {
         nombreDuenoMuestra = d['dueno_muestra_nombre'];
       }
 
-      setState(() {
-        _tipoTieneTaco = data['taco'] ?? false;
-        _tipoTienePlataforma = data['plataforma'] ?? false;
-        _tipoTieneColores = data['colores'] ?? false;
+      if (mounted) {
+        setState(() {
+          _calzados = listaCalzados;
 
-        _calzadoId = cId;
-        _tallaSeleccionada = d['talla'];
-        _colorSeleccionado = (d['colores'] == '' || d['colores'] == null)
-            ? null
-            : d['colores'].toString();
-        _tacoSeleccionado = (d['taco'] == 0 || d['taco'] == null)
-            ? null
-            : (d['taco'] as num).toInt();
-        _plataformaSeleccionada =
-            (d['plataforma'] == '' || d['plataforma'] == null)
-                ? null
-                : d['plataforma'].toString();
-        _cantidadVenta = d['cantidad'];
-        _precioVentaTotal =
-            double.tryParse(d['precio_venta_total'].toString()) ?? 0.0;
-        _metodoPagoSeleccionado = d['metodo_pago'];
-        _lugarVentaSeleccionado = d['lugar_venta'];
+          if (data != null) {
+            _tipoTieneTaco = data['taco'] ?? false;
+            _tipoTienePlataforma = data['plataforma'] ?? false;
+            _tipoTieneColores = data['colores'] ?? false;
+          }
 
-        // Campos para el Dueño
-        esMuestra = d['id_dueno_muestra'] != null;
-        idDuenoMuestra = d['id_dueno_muestra']?.toString();
+          _calzadoId = cId;
+          _tallaSeleccionada = d['talla'];
+          _colorSeleccionado = (d['colores'] == '' || d['colores'] == null)
+              ? null
+              : d['colores'].toString();
+          _tacoSeleccionado = (d['taco'] == 0 || d['taco'] == null)
+              ? null
+              : (d['taco'] as num).toInt();
+          _plataformaSeleccionada =
+              (d['plataforma'] == '' || d['plataforma'] == null)
+                  ? null
+                  : d['plataforma'].toString();
+          _cantidadVenta = d['cantidad'] ?? 0;
+          _precioVentaTotal =
+              double.tryParse(d['precio_venta_total'].toString()) ?? 0.0;
+          _metodoPagoSeleccionado = d['metodo_pago'];
+          _lugarVentaSeleccionado = d['lugar_venta'];
 
-        _cantidadController.text = _cantidadVenta.toString();
-        _precioController.text = _precioVentaTotal.toString();
-      });
+          esMuestra = d['id_dueno_muestra'] != null;
+          idDuenoMuestra = d['id_dueno_muestra']?.toString();
+
+          _cantidadController.text = _cantidadVenta.toString();
+          _precioController.text = _precioVentaTotal.toString();
+          _cargandoInicial = false;
+        });
+      }
+    } catch (e) {
+      print('Error cargando datos de edición: $e');
+      if (mounted) {
+        setState(() => _cargandoInicial = false);
+      }
     }
   }
 
@@ -139,42 +163,18 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
   Future<void> _realizarVenta() async {
     if (!_puedeVender) return;
+
     showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const SplashScreen02());
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const SplashScreen02(),
+    );
 
-    try {
-      final db = FirebaseFirestore.instance;
-      final batch = db.batch();
-
-      final dAntiguo = widget.datosEdicion!;
-      final subfilasAntiguas = await db
-          .collection('subfila_inventario')
-          .where('talla', isEqualTo: dAntiguo['talla'])
-          .where('colores', isEqualTo: dAntiguo['colores'] ?? '')
-          .where('taco', isEqualTo: dAntiguo['taco'] ?? 0)
-          .where('plataforma', isEqualTo: dAntiguo['plataforma'] ?? '')
-          .get();
-
-      for (var subDoc in subfilasAntiguas.docs) {
-        final filaRef = await db
-            .collection('fila_inventario')
-            .doc(subDoc['fila_inventario_id'])
-            .get();
-        if (filaRef.exists &&
-            filaRef['calzado_id'] == dAntiguo['calzado_id'] &&
-            filaRef['id_inventario'] == widget.inventarioId) {
-          batch.update(subDoc.reference,
-              {'cantidad': FieldValue.increment(dAntiguo['cantidad'])});
-          batch.update(filaRef.reference,
-              {'cantidad': FieldValue.increment(dAntiguo['cantidad'])});
-          break;
-        }
-      }
-
-      final ventaMap = {
-        'calzado_id': _calzadoId,
+    final exito = await FilaVentaService.editarVenta(
+      idFilaVenta: widget.ventaId,
+      data: {
+        'id_inventario': widget.inventarioId,
+        'id_calzado': _calzadoId,
         'talla': _tallaSeleccionada,
         'colores': _tipoTieneColores ? _colorSeleccionado ?? '' : '',
         'taco': _tipoTieneTaco ? _tacoSeleccionado ?? 0 : 0,
@@ -184,77 +184,20 @@ class _VentaFormPageState extends State<VentaFormPage> {
         'metodo_pago': _metodoPagoSeleccionado,
         'lugar_venta': _lugarVentaSeleccionado,
         'usuario_creacion': widget.firstName ?? 'anon',
-        'fecha_venta': widget.datosEdicion!['fecha_venta'],
-      };
-
-      DocumentReference vRef =
-          db.collection('venta').doc(widget.datosEdicion!['venta_id']);
-      batch.update(vRef, ventaMap);
-      batch.update(db.collection('fila_venta').doc(widget.ventaId), {
-        ...ventaMap,
-        'id_inventario': widget.inventarioId,
         'email_user': widget.emailUser ?? 'anon',
-      });
+      },
+    );
 
-      int cantidadPorDescontar = _cantidadVenta;
-      final filasSnap = await db
-          .collection('fila_inventario')
-          .where('calzado_id', isEqualTo: _calzadoId)
-          .where('inventario_id', isEqualTo: widget.inventarioId)
-          .limit(1)
-          .get();
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
-      if (filasSnap.docs.isNotEmpty) {
-        final filaDoc = filasSnap.docs.first;
-        int stockActualFila = filaDoc['cantidad'] ?? 0;
-
-        Query subQuery = db
-            .collection('subfila_inventario')
-            .where('fila_inventario_id', isEqualTo: filaDoc.id)
-            .where('talla', isEqualTo: _tallaSeleccionada);
-        if (_tipoTieneColores) {
-          subQuery =
-              subQuery.where('colores', isEqualTo: _colorSeleccionado ?? '');
-        }
-        if (_tipoTieneTaco) {
-          subQuery = subQuery.where('taco', isEqualTo: _tacoSeleccionado ?? 0);
-        }
-        if (_tipoTienePlataforma) {
-          subQuery = subQuery.where('plataforma',
-              isEqualTo: _plataformaSeleccionada ?? '');
-        }
-
-        final subSnap = await subQuery.get();
-
-        if (subSnap.docs.isNotEmpty) {
-          final subDoc = subSnap.docs.first;
-          int stockActualSub = subDoc['cantidad'];
-
-          if (stockActualSub <= cantidadPorDescontar) {
-            batch.delete(subDoc.reference);
-          } else {
-            batch.update(subDoc.reference,
-                {'cantidad': FieldValue.increment(-cantidadPorDescontar)});
-          }
-
-          if (stockActualFila <= cantidadPorDescontar) {
-            batch.delete(filaDoc.reference);
-          } else {
-            batch.update(filaDoc.reference,
-                {'cantidad': FieldValue.increment(-cantidadPorDescontar)});
-          }
-        }
-      }
-
-      await batch.commit();
+    if (exito) {
+      if (mounted) Navigator.pop(context, true);
+    } else {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al actualizar la venta')),
+        );
       }
-    } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -262,44 +205,42 @@ class _VentaFormPageState extends State<VentaFormPage> {
   // UI COMPONENTS
   // -------------------------------------------------------
 
-  Widget _buildDropdownCalzado(List<Map<String, dynamic>> calzados) {
-  print('Calzados disponibles: ${calzados.length}');
-  
-  return DropdownButtonFormField<String>(
-    decoration: const InputDecoration(
-      labelText: 'Seleccionar código',
-      border: OutlineInputBorder(),
-    ),
-    // Forzamos que _calzadoId sea String
-    value: _calzadoId?.toString(),
-    items: calzados.map((data) {
-      // .toString() evita que falle si id_calzado viene como int desde PostgreSQL
-      final String calzadoId = (data['id_calzado'] ?? data['calzado_id'] ?? '').toString();
-      final String? rutaIcono = data['icono'] ?? data['calzado_icono'];
+  Widget _buildDropdownCalzado() {
+    return DropdownButtonFormField<String>(
+      decoration: const InputDecoration(
+        labelText: 'Seleccionar código',
+        border: OutlineInputBorder(),
+      ),
+      value: _calzadoId?.toString(),
+      items: _calzados.map((data) {
+        final String calzadoId =
+            (data['id_calzado'] ?? data['calzado_id'] ?? '').toString();
+        final String? rutaIcono = data['icono'] ?? data['calzado_icono'];
 
-      return DropdownMenuItem<String>(
-        value: calzadoId,
-        child: Row(
-          children: [
-            if (rutaIcono != null && rutaIcono.isNotEmpty)
-              Image.asset(
-                rutaIcono,
-                width: 32,
-                height: 32,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.category, size: 32),
-              )
-            else
-              const Icon(Icons.category, size: 32),
-            const SizedBox(width: 8),
-            Text(data['nombre'] ?? ''),
-          ],
-        ),
-      );
-    }).toList(),
-    onChanged: null,
-  );
-}
+        return DropdownMenuItem<String>(
+          value: calzadoId,
+          child: Row(
+            children: [
+              if (rutaIcono != null && rutaIcono.isNotEmpty)
+                Image.asset(
+                  rutaIcono,
+                  width: 32,
+                  height: 32,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.category, size: 32),
+                )
+              else
+                const Icon(Icons.category, size: 32),
+              const SizedBox(width: 8),
+              Text(data['nombre'] ?? ''),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: null,
+    );
+  }
+
   Widget _buildDropdownTalla() {
     if (_calzadoId == null) return const SizedBox();
     return Padding(
@@ -311,9 +252,9 @@ class _VentaFormPageState extends State<VentaFormPage> {
         items: [
           DropdownMenuItem(
               value: _tallaSeleccionada,
-              child: Text(_tallaSeleccionada.toString()))
+              child: Text(_tallaSeleccionada?.toString() ?? ''))
         ],
-        onChanged: null, // Bloqueado por edición
+        onChanged: null,
       ),
     );
   }
@@ -354,7 +295,7 @@ class _VentaFormPageState extends State<VentaFormPage> {
           DropdownMenuItem(
               value: _colorSeleccionado, child: Text(_colorSeleccionado ?? ''))
         ],
-        onChanged: null, // Bloqueado por edición
+        onChanged: null,
       ),
     );
   }
@@ -371,7 +312,7 @@ class _VentaFormPageState extends State<VentaFormPage> {
           DropdownMenuItem(
               value: _tacoSeleccionado, child: Text('$_tacoSeleccionado cm'))
         ],
-        onChanged: null, // Bloqueado por edición
+        onChanged: null,
       ),
     );
   }
@@ -391,7 +332,7 @@ class _VentaFormPageState extends State<VentaFormPage> {
               value: _plataformaSeleccionada,
               child: Text(_plataformaSeleccionada ?? ''))
         ],
-        onChanged: null, // Bloqueado por edición
+        onChanged: null,
       ),
     );
   }
@@ -488,6 +429,15 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cargandoInicial) {
+      return Scaffold(
+        appBar: Designwidgets().appBarMain('Editar Venta'),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: Designwidgets().appBarMain('Editar Venta'),
       body: Padding(
@@ -498,23 +448,7 @@ class _VentaFormPageState extends State<VentaFormPage> {
             children: [
               if (esMuestra) _buildDropdownDueno(),
               const SizedBox(height: 16),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future:
-                    CalzadoService.obtenerPorInventario(widget.inventarioId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const LinearProgressIndicator();
-                  }
-
-                  if (snapshot.hasError ||
-                      !snapshot.hasData ||
-                      snapshot.data!.isEmpty) {
-                    return const Text('No se encontraron calzados');
-                  }
-
-                  return _buildDropdownCalzado(snapshot.data!);
-                },
-              ),
+              _buildDropdownCalzado(),
               _buildDropdownTalla(),
               _buildDropdownColor(),
               _buildDropdownTaco(),

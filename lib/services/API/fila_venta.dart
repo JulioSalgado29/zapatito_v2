@@ -110,4 +110,35 @@ class FilaVentaService {
       return false;
     }
   }
+
+  // 4. Editar venta / muestra existente
+  // PUT /api/fila_venta/:id_fila_venta
+  static Future<bool> editarVenta({
+    required dynamic idFilaVenta,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final url = Uri.parse(
+        '${ApiService.baseUrl}/api/fila_venta/${Uri.encodeComponent(idFilaVenta.toString())}',
+      );
+
+      final response = await http.put(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
+        print('Venta/muestra actualizada exitosamente');
+        return true;
+      } else {
+        print('Error al editar venta. Status code: ${response.statusCode}');
+        print('Respuesta del servidor: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error de red al editar venta: $e');
+      return false;
+    }
+  }
 }
