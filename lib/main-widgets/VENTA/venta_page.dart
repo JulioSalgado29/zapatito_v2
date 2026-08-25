@@ -21,16 +21,43 @@ class VentaPage extends StatefulWidget {
 }
 
 class _VentaPageState extends State<VentaPage> {
-  // 🔹 CAMBIO API: Se remueve el caché local _calzadoCache pues el backend entrega los datos vía JOIN
   DateTime _fechaFiltro = DateTime.now();
+
+  // 🔹 Estado de Carga / Splash
+  bool _isLoading = true;
+
+  // 🔹 Controladores y variables para el Buscador
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    InventarioService.validarYRedirigir(context, widget.inventarioId);
+    _inicializarPagina();
   }
 
-  // --- LÓGICA DE ELIMINACIÓN Y REVERSA (Mantenida intacta) ---
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _inicializarPagina() async {
+    // Redirección si no hay inventario
+    InventarioService.validarYRedirigir(context, widget.inventarioId);
+
+    // Mantenemos el SplashScreen visible un breve momento para suavizar la transición
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // --- LÓGICA DE ELIMINACIÓN Y REVERSA ---
   Future<void> _eliminarVentaConReversa(
       String filaVentaId, Map<String, dynamic> data) async {
     final bool esMuestra = data['muestra'] ?? false;
@@ -137,6 +164,7 @@ class _VentaPageState extends State<VentaPage> {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
       if (exito) {
+        setState(() {}); // Refrescar lista tras eliminar
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(esMuestra
                 ? 'Muestra eliminada.'
@@ -170,9 +198,7 @@ class _VentaPageState extends State<VentaPage> {
     try {
       final DateTime dt = timestamp is DateTime
           ? timestamp
-          : (timestamp is DateTime
-              ? timestamp
-              : DateTime.parse(timestamp.toString()));
+          : DateTime.parse(timestamp.toString());
       String dia = DateFormat('EEEE', 'es_ES').format(dt);
       String resto = DateFormat("d 'de' MMMM - yyyy", "es_ES").format(dt);
       String hora = DateFormat('hh:mm a').format(dt);
@@ -182,11 +208,13 @@ class _VentaPageState extends State<VentaPage> {
     }
   }
 
-  // 🔹 CAMBIO API: Se eliminaron _getDatosCalzado y _getDatosDuenoMuestra (ya se reciben consolidados en la query del backend)
-
   @override
   Widget build(BuildContext context) {
-    if (widget.inventarioId == null) return const SplashScreen02();
+    // 🔹 Muestra el SplashScreen02 mientras evalúa o carga
+    if (_isLoading || widget.inventarioId == null) {
+      return const SplashScreen02();
+    }
+
     bool esHoy = DateFormat('dd/MM/yyyy').format(_fechaFiltro) ==
         DateFormat('dd/MM/yyyy').format(DateTime.now());
 
@@ -194,19 +222,62 @@ class _VentaPageState extends State<VentaPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xff5b16c2),
         foregroundColor: Colors.white,
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context)),
-        title: const Text('Ventas Realizadas',
-            style:
-                TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Georgia')),
+        leading: _isSearching
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchQuery = '';
+                    _searchController.clear();
+                  });
+                },
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context)),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar calzado...',
+                  hintStyle: TextStyle(color: Colors.white70),
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val.toLowerCase().trim();
+                  });
+                },
+              )
+            : const Text('Ventas Realizadas',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, fontFamily: 'Georgia')),
         actions: [
-          IconButton(
-              icon: const Icon(Icons.today),
-              onPressed: () => setState(() => _fechaFiltro = DateTime.now())),
-          IconButton(
-              icon: const Icon(Icons.calendar_month),
-              onPressed: () => _seleccionarFecha(context)),
+          if (!_isSearching) ...[
+            IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => setState(() => _isSearching = true)),
+            IconButton(
+                icon: const Icon(Icons.today),
+                onPressed: () => setState(() => _fechaFiltro = DateTime.now())),
+            IconButton(
+                icon: const Icon(Icons.calendar_month),
+                onPressed: () => _seleccionarFecha(context)),
+          ] else ...[
+            if (_searchController.text.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                    _searchQuery = '';
+                  });
+                },
+              ),
+          ]
         ],
       ),
       drawer:
@@ -228,7 +299,6 @@ class _VentaPageState extends State<VentaPage> {
                     fontWeight: FontWeight.bold),
               ),
             ),
-            // 🔹 CAMBIO API: Reemplazo de StreamBuilder por FutureBuilder invocando a FilaVentaService
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: FilaVentaService.obtenerPorInventario(
@@ -248,7 +318,20 @@ class _VentaPageState extends State<VentaPage> {
                             ? 'Aún no hay ventas registradas hoy.'
                             : 'No hay ventas para esta fecha.'));
                   }
-                  final filas = snapshot.data!;
+
+                  // 🔹 Lógica de Filtro por Buscador
+                  final filas = snapshot.data!.where((fila) {
+                    if (_searchQuery.isEmpty) return true;
+                    final nombreCalzado =
+                        (fila['calzado_nombre'] ?? '').toString().toLowerCase();
+                    return nombreCalzado.contains(_searchQuery);
+                  }).toList();
+
+                  if (filas.isEmpty) {
+                    return const Center(
+                        child: Text('No se encontraron coincidencias.'));
+                  }
+
                   return ListView.builder(
                     padding: const EdgeInsets.only(top: 10, bottom: 150),
                     itemCount: filas.length,
@@ -288,11 +371,9 @@ class _VentaPageState extends State<VentaPage> {
     );
   }
 
-  // 🔹 CAMBIO API: Recibe directamente el Map<String, dynamic> proveniente de Node.js (se retira el FutureBuilder interno)
   Widget _buildVentaCard(Map<String, dynamic> filaData) {
     final String filaId = filaData['id_fila_venta'].toString();
 
-    // Se valida si es muestra analizando id_dueno_muestra entregado por la vista SQL
     final bool esMuestra = filaData['id_dueno_muestra'] != null;
     final String duenoMuestraNombre =
         filaData['dueno_muestra_nombre'] ?? 'Desconocido';
@@ -315,7 +396,6 @@ class _VentaPageState extends State<VentaPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
-          // 🔹 Banner superior si es muestra
           if (esMuestra)
             Container(
               width: double.infinity,
@@ -335,7 +415,6 @@ class _VentaPageState extends State<VentaPage> {
                 textAlign: TextAlign.center,
               ),
             ),
-
           ExpansionTile(
             shape: const Border(),
             leading: _buildIcon(filaData['calzado_icono']),
@@ -431,8 +510,8 @@ class _VentaPageState extends State<VentaPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       TextButton.icon(
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () async {
+                          final res = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => VentaFormPage(
@@ -441,6 +520,7 @@ class _VentaPageState extends State<VentaPage> {
                                       inventarioId: widget.inventarioId,
                                       ventaId: filaId,
                                       datosEdicion: filaData)));
+                          if (res == true) setState(() {});
                         },
                         icon: const Icon(Icons.edit, color: Colors.blue),
                         label: const Text('Editar'),
@@ -490,20 +570,27 @@ class _VentaPageState extends State<VentaPage> {
         errorBuilder: (_, __, ___) => const Icon(Icons.receipt));
   }
 
-  void _navegarFormularioMultiple() => Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => VentaFormPageMultiple(
-              firstName: widget.firstName,
-              emailUser: widget.emailUser,
-              inventarioId: widget.inventarioId)));
-  void _navegarFormularioMuestra() => Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => VentaFormPageMuestra(
-              firstName: widget.firstName,
-              emailUser: widget.emailUser,
-              inventarioId: widget.inventarioId)));
+  void _navegarFormularioMultiple() async {
+    final res = await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => VentaFormPageMultiple(
+                firstName: widget.firstName,
+                emailUser: widget.emailUser,
+                inventarioId: widget.inventarioId)));
+    if (res == true) setState(() {});
+  }
+
+  void _navegarFormularioMuestra() async {
+    final res = await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => VentaFormPageMuestra(
+                firstName: widget.firstName,
+                emailUser: widget.emailUser,
+                inventarioId: widget.inventarioId)));
+    if (res == true) setState(() {});
+  }
 
   Widget _buildFab(
       Gradient gradient, String tag, VoidCallback onPressed, String label) {
