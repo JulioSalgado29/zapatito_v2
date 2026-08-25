@@ -4,6 +4,7 @@ import 'package:zapatito_v2/main-widgets/CALZADO/calzado_page.dart';
 import 'package:zapatito_v2/main-widgets/DUENO_MUESTRA/dueno_muestra_page.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_page.dart';
 import 'package:zapatito_v2/main-widgets/TIPO_CALZADO/tipo_calzado_page.dart';
+import 'package:zapatito_v2/main-widgets/VENTA/venta_page.dart';
 import 'package:zapatito_v2/services/API/usuario.dart';
 import 'package:zapatito_v2/services/local_storage.dart';
 
@@ -66,7 +67,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = rolName == "Administrador";
-    //final bool isVendedor = rolName == "Vendedor";
+    final bool isVendedor = rolName == "Vendedor";
     final bool isAlmacenero = rolName == "Almacenero";
 
     return Scaffold(
@@ -125,7 +126,6 @@ class _HomePageState extends State<HomePage> {
                           inventarioId: inventarioId,
                           isAlmacenero: isAlmacenero),
                     ),
-
                 if (isAdmin || isAlmacenero)
                   _buildMenuButton(
                     context,
@@ -135,7 +135,6 @@ class _HomePageState extends State<HomePage> {
                         emailUser: emailUser,
                         inventarioId: inventarioId),
                   ),
-                /*
                 if (isAdmin || isVendedor || isAlmacenero)
                   _buildMenuButton(
                     context,
@@ -145,7 +144,6 @@ class _HomePageState extends State<HomePage> {
                         emailUser: emailUser,
                         inventarioId: inventarioId),
                   ),
-                  */
                 ],
               ),
             ),
