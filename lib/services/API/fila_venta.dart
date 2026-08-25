@@ -12,12 +12,17 @@ class FilaVentaService {
   }) async {
     try {
       String queryParams = '';
-      
+
       if (fechaFiltro != null) {
-        String fechaFormateada = DateFormat('yyyy-MM-dd').format(fechaFiltro);
+        // Aseguramos que la fecha enviada sea la fecha local
+        String fechaFormateada =
+            DateFormat('yyyy-MM-dd').format(fechaFiltro.toLocal());
         queryParams = '?fecha=$fechaFormateada';
       }
 
+      print(queryParams.isNotEmpty
+          ? 'Obteniendo filas de venta para inventario $idInventario con fecha $queryParams'
+          : 'Obteniendo filas de venta para inventario $idInventario sin filtro de fecha');
       final url = Uri.parse(
         '${ApiService.baseUrl}/api/fila_venta/inventario/${Uri.encodeComponent(idInventario)}$queryParams',
       );
@@ -29,10 +34,12 @@ class FilaVentaService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('Filas de venta obtenidas exitosamente: ${data.length} registros');
+        print(
+            'Filas de venta obtenidas exitosamente: ${data.length} registros');
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print('Error al listar filas de venta. Status code: ${response.statusCode}');
+        print(
+            'Error al listar filas de venta. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return [];
       }
@@ -67,12 +74,39 @@ class FilaVentaService {
         print('Eliminación y reversa procesadas con éxito');
         return true;
       } else {
-        print('Error al eliminar fila de venta. Status code: ${response.statusCode}');
+        print(
+            'Error al eliminar fila de venta. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return false;
       }
     } catch (e) {
       print('Error de red al eliminar fila de venta: $e');
+      return false;
+    }
+  }
+
+  // 3. Crear venta / muestra
+  // POST /api/fila_venta
+  static Future<bool> crearVenta(Map<String, dynamic> data) async {
+    try {
+      final url = Uri.parse('${ApiService.baseUrl}/api/fila_venta');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        print('Venta/muestra registrada exitosamente');
+        return true;
+      } else {
+        print('Error al crear venta. Status code: ${response.statusCode}');
+        print('Respuesta del servidor: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error de red al crear venta: $e');
       return false;
     }
   }

@@ -60,7 +60,7 @@ class _VentaPageState extends State<VentaPage> {
   // --- LÓGICA DE ELIMINACIÓN Y REVERSA ---
   Future<void> _eliminarVentaConReversa(
       String filaVentaId, Map<String, dynamic> data) async {
-    final bool esMuestra = data['muestra'] ?? false;
+    final bool esMuestra = data['id_dueno_muestra'] != null;
 
     bool confirm = await showDialog(
           context: context,
@@ -378,10 +378,10 @@ class _VentaPageState extends State<VentaPage> {
     final String duenoMuestraNombre =
         filaData['dueno_muestra_nombre'] ?? 'Desconocido';
 
-    final DateTime fechaVenta = filaData['fecha_creacion'] != null
-        ? (filaData['fecha_creacion'] is DateTime
-            ? filaData['fecha_creacion'] as DateTime
-            : DateTime.parse(filaData['fecha_creacion'].toString()))
+    final DateTime fechaVenta = filaData['fecha_venta'] != null
+        ? (filaData['fecha_venta'] is DateTime
+            ? filaData['fecha_venta'] as DateTime
+            : DateTime.parse(filaData['fecha_venta'].toString()).toLocal())
         : DateTime.now();
 
     final bool esVentaDeHoy = DateFormat('dd/MM/yyyy').format(fechaVenta) ==
