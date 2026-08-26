@@ -793,7 +793,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
     return Scaffold(
       appBar: Designwidgets().appBarMain(
-          widget.filaId != null ? "Editar Inventario" : "Agregado Manual"),
+          widget.filaId != null ? "Editar por Código" : "Agregado por Código"),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(

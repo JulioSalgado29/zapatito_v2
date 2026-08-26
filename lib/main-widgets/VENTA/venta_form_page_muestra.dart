@@ -426,7 +426,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   Widget build(BuildContext context) {
     if (_cargandoInicial) {
       return Scaffold(
-        appBar: Designwidgets().appBarMain('Nueva Venta Muestra'),
+        appBar: Designwidgets().appBarMain('Venta por Muestra'),
         body: const Center(
           child: CircularProgressIndicator(),
         ),
@@ -444,7 +444,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             i.precioVentaTotal > 0);
 
     return Scaffold(
-      appBar: Designwidgets().appBarMain('Nueva Venta Muestra'),
+      appBar: Designwidgets().appBarMain('Venta por Muestra'),
       body: Column(
         children: [
           Expanded(

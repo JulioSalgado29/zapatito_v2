@@ -759,7 +759,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
         : [];
 
     return Scaffold(
-      appBar: Designwidgets().appBarMain("Agregar Serie"),
+      appBar: Designwidgets().appBarMain("Agregado por Serie"),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
