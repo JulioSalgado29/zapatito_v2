@@ -492,7 +492,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Widget _buildDropdownPlataforma(int index) {
     var item = _itemsVenta[index];
-    if (!item.tipoTienePlataforma || item.plataformasDisponibles.isEmpty) {
+    if (!item.tipoTienePlataforma || item.tallaSeleccionada == null || item.plataformasDisponibles.isEmpty) {
       return const SizedBox();
     }
 
