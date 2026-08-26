@@ -387,7 +387,7 @@ class _VentaPageState extends State<VentaPage> {
               _navegarFormularioMuestra, "Muestra"),
           const SizedBox(height: 12),
           _buildFab(Designwidgets().linearGradientFire(context), "btn2",
-              _navegarFormularioMultiple, "Por Mayor"),
+              _navegarFormularioMultiple, "Catálogo"),
         ],
       ),
     );
