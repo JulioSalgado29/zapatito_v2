@@ -41,6 +41,7 @@ class FilaVentaMultipleService {
     int? talla,
     String? colores,
     int? taco,
+    String? plataforma, // <--- Nuevo parámetro agregado
   }) async {
     try {
       final intIdInventario = int.tryParse(idInventario?.toString() ?? '');
@@ -51,7 +52,7 @@ class FilaVentaMultipleService {
       }
 
       final queryParams = <String, String>{};
-      
+
       // Si ya hay un calzado seleccionado, lo agregamos como queryParam
       if (idCalzado != null && idCalzado.toString() != 'null') {
         queryParams['id_calzado'] = idCalzado.toString();
@@ -59,6 +60,7 @@ class FilaVentaMultipleService {
       if (talla != null) queryParams['talla'] = talla.toString();
       if (colores != null && colores.trim().isNotEmpty) queryParams['colores'] = colores.trim();
       if (taco != null) queryParams['taco'] = taco.toString();
+      if (plataforma != null && plataforma.trim().isNotEmpty) queryParams['plataforma'] = plataforma.trim();
 
       final uri = Uri.parse(
         '${ApiService.baseUrl}/api/fila_venta_multiple/stock-cascada/$intIdInventario',

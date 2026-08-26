@@ -165,6 +165,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         talla: item.tallaSeleccionada,
         colores: item.colorSeleccionado,
         taco: item.tacoSeleccionado,
+        plataforma: item.plataformaSeleccionada
       );
 
       print('Datos recibidos para stock cascada: $data');
@@ -377,6 +378,11 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           item.tipoTieneTaco = calzadoSel['taco'] ?? false;
           item.tipoTienePlataforma = calzadoSel['plataforma'] ?? false;
           item.tipoTieneColores = calzadoSel['colores'] ?? false;
+          item.colorSeleccionado = null;
+          item.tacoSeleccionado = null;
+          item.plataformaSeleccionada = null;
+          item.cantidadVenta = 0;
+          item.cantidadController.clear();
         });
 
         _actualizarStockCascada(index);
