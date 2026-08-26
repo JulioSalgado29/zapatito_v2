@@ -32,6 +32,33 @@ class VentaItem {
   final TextEditingController cantidadController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
 
+  void limpiar() {
+    calzadoId = null;
+    tallaSeleccionada = null;
+    tacoSeleccionado = null;
+    colorSeleccionado = null;
+    plataformaSeleccionada = null;
+    stockDisponible = 0;
+    cantidadVenta = 0;
+    precioVentaTotal = 0.0;
+    cargandoStock = false;
+    calzadosDisponibles.clear();
+    tallasDisponibles.clear();
+    tacosDisponibles.clear();
+    coloresDisponibles.clear();
+    plataformasDisponibles.clear();
+    errorTalla = false;
+    errorColor = false;
+    errorTaco = false;
+    tipoTieneTaco = false;
+    tipoTienePlataforma = false;
+    tipoTieneColores = false;
+    metodoPagoSeleccionado = null;
+    lugarVentaSeleccionado = null;
+    cantidadController.clear();
+    precioController.clear();
+  }
+
   void dispose() {
     cantidadController.dispose();
     precioController.dispose();
@@ -78,7 +105,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   }
 
   Future<void> _cargarTallasInicialesInventario() async {
-    // Llama a la API pasándole solo el idInventario actual
     final res = await FilaVentaMultipleService.consultarStockCascada(
       idInventario: widget.inventarioId,
     );
@@ -126,6 +152,12 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     });
   }
 
+  void _limpiarItem(int index) {
+    setState(() {
+      _itemsVenta[index].limpiar();
+    });
+  }
+
   bool _esCombinacionDuplicada(int indexActual) {
     var actual = _itemsVenta[indexActual];
     if (actual.calzadoId == null || actual.tallaSeleccionada == null) {
@@ -150,7 +182,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     if (index >= _itemsVenta.length) return;
     var item = _itemsVenta[index];
 
-    // Si ambos son null o no hay inventarioId, no hay nada que consultar
     if ((item.calzadoId == null && item.tallaSeleccionada == null) ||
         widget.inventarioId == null) {
       return;
@@ -183,7 +214,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                 .where((c) => c > 0),
           );
 
-          print(data);
           final rawTallas = data['tallas_disponibles'];
 
           if (item.calzadoId != null && rawTallas == null) {
@@ -393,8 +423,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildDropdownTalla(int index) {
     var item = _itemsVenta[index];
 
-    // Si ya seleccionó un calzado, se respeta ÚNICAMENTE su lista de tallas (aunque esté vacía).
-    // Si NO ha seleccionado calzado, se muestran todas las tallas del inventario general.
     final listadoTallas =
         item.calzadoId != null ? item.tallasDisponibles : _tallasInventario;
 
@@ -410,11 +438,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
               ? 'Sin tallas disponibles'
               : 'Seleccione talla',
         ),
-        // Si el listado no contiene la talla elegida previamente, pasa a null
         value: listadoTallas.contains(item.tallaSeleccionada)
             ? item.tallaSeleccionada
             : null,
-        // Si no hay tallas disponibles para ese calzado, deshabilitamos el Dropdown (onChanged: null)
         onChanged: estaHabilitado
             ? (v) {
                 if (v == null) return;
@@ -498,7 +524,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Widget _buildDropdownPlataforma(int index) {
     var item = _itemsVenta[index];
-    if (!item.tipoTienePlataforma || item.tallaSeleccionada == null || item.plataformasDisponibles.isEmpty) {
+    if (!item.tipoTienePlataforma ||
+        item.tallaSeleccionada == null ||
+        item.plataformasDisponibles.isEmpty) {
       return const SizedBox();
     }
 
@@ -685,9 +713,22 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                           Text('Venta #${index + 1}',
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold)),
-                          IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _eliminarItem(index)),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.cleaning_services,
+                                    color: Colors.orange),
+                                tooltip: 'Limpiar campos',
+                                onPressed: () => _limpiarItem(index),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                tooltip: 'Eliminar ítem',
+                                onPressed: () => _eliminarItem(index),
+                              ),
+                            ],
+                          ),
                         ]),
                     const Divider(),
                     _buildStockIndicator(index),
