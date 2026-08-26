@@ -120,12 +120,10 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   }
 
   void _eliminarItem(int index) {
-    if (_itemsVenta.length > 1) {
-      setState(() {
-        _itemsVenta[index].dispose();
-        _itemsVenta.removeAt(index);
-      });
-    }
+    setState(() {
+      _itemsVenta[index].dispose();
+      _itemsVenta.removeAt(index);
+    });
   }
 
   bool _esCombinacionDuplicada(int indexActual) {
@@ -328,12 +326,16 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     final item = _itemsVenta[index];
 
-    final calzadosFiltrados = item.calzadosDisponibles.isNotEmpty
-        ? _listaCalzados.where((c) {
-            final id = int.tryParse(c['id_calzado'].toString());
-            return item.calzadosDisponibles.contains(id);
-          }).toList()
-        : _listaCalzados;
+    List<dynamic> calzadosFiltrados = _listaCalzados;
+
+    if (item.tallaSeleccionada != null) {
+      if (item.calzadosDisponibles.isNotEmpty) {
+        calzadosFiltrados = _listaCalzados.where((c) {
+          final id = int.tryParse(c['id_calzado'].toString());
+          return item.calzadosDisponibles.contains(id);
+        }).toList();
+      }
+    }
 
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
@@ -387,9 +389,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     // Si ya seleccionó un calzado, se respeta ÚNICAMENTE su lista de tallas (aunque esté vacía).
     // Si NO ha seleccionado calzado, se muestran todas las tallas del inventario general.
-    final listadoTallas = item.calzadoId != null
-        ? item.tallasDisponibles
-        : _tallasInventario;
+    final listadoTallas =
+        item.calzadoId != null ? item.tallasDisponibles : _tallasInventario;
 
     final estaHabilitado = listadoTallas.isNotEmpty;
 
@@ -432,7 +433,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildDropdownColor(int index) {
     var item = _itemsVenta[index];
     if (!item.tipoTieneColores ||
-        item.tallaSeleccionada == null || item.calzadoId == null ||
+        item.tallaSeleccionada == null ||
+        item.calzadoId == null ||
         item.coloresDisponibles.isEmpty) {
       return const SizedBox();
     }
@@ -526,7 +528,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildMetodoYLugar(int index) {
     var item = _itemsVenta[index];
 
-    bool listo = item.tallaSeleccionada != null && item.calzadoId != null &&
+    bool listo = item.tallaSeleccionada != null &&
+        item.calzadoId != null &&
         (!item.tipoTieneColores || item.colorSeleccionado != null) &&
         (!item.tipoTieneTaco || item.tacoSeleccionado != null) &&
         (!item.tipoTienePlataforma || item.plataformaSeleccionada != null);
@@ -581,7 +584,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
   Widget _buildCantidadYPrecio(int index) {
     var item = _itemsVenta[index];
-    bool listo = item.tallaSeleccionada != null && item.calzadoId != null &&
+    bool listo = item.tallaSeleccionada != null &&
+        item.calzadoId != null &&
         (!item.tipoTieneColores || item.colorSeleccionado != null) &&
         (!item.tipoTieneTaco || item.tacoSeleccionado != null) &&
         (!item.tipoTienePlataforma || item.plataformaSeleccionada != null);
@@ -675,11 +679,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                           Text('Venta #${index + 1}',
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold)),
-                          if (_itemsVenta.length > 1)
-                            IconButton(
-                                icon:
-                                    const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _eliminarItem(index)),
+                          IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _eliminarItem(index)),
                         ]),
                     const Divider(),
                     _buildStockIndicator(index),
