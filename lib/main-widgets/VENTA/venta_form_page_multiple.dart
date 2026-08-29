@@ -304,11 +304,11 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           'taco': item.tipoTieneTaco ? (item.tacoSeleccionado ?? 0) : 0,
           // colores es VARCHAR: si no tiene, envía cadena vacía ""
           'colores':
-              item.tipoTieneColores ? (item.colorSeleccionado ?? "") : "",
+              item.tipoTieneColores ? (item.colorSeleccionado ?? "0") : "0",
           // plataforma es VARCHAR: si no tiene, envía cadena vacía ""
           'plataforma': item.tipoTienePlataforma
-              ? (item.plataformaSeleccionada ?? "")
-              : "",
+              ? (item.plataformaSeleccionada ?? "0")
+              : "0",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
