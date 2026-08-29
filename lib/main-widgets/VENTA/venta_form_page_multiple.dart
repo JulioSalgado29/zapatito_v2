@@ -303,16 +303,18 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           'talla': item.tallaSeleccionada,
           'taco': item.tipoTieneTaco ? (item.tacoSeleccionado ?? 0) : 0,
           'colores':
-              item.tipoTieneColores ? (item.colorSeleccionado ?? '') : '',
+              item.tipoTieneColores ? (item.colorSeleccionado ?? '0') : '0',
           'plataforma': item.tipoTienePlataforma
-              ? (item.plataformaSeleccionada ?? '')
-              : '',
+              ? (item.plataformaSeleccionada ?? '0')
+              : '0',
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
           'lugar_venta': item.lugarVentaSeleccionado,
         };
       }).toList();
+
+      print(itemsPayload);
 
       final exito = await FilaVentaMultipleService.registrarVentaMultiple(
         idInventario: widget.inventarioId ?? '',
