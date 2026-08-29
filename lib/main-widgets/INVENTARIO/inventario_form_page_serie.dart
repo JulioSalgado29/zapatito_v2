@@ -148,7 +148,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text(
-                'La suma de subfilas debe ser igual al total de series')),
+               'La suma de subfilas debe ser igual al total de series')),
       );
       return;
     }
@@ -174,8 +174,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
         return;
       }
       if (_tipoTienePlataforma &&
-          (sub['plataforma'] == null ||
-              sub['plataforma'].toString().isEmpty)) {
+          (sub['plataforma'] == null || sub['plataforma'].toString().isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text(
@@ -212,8 +211,11 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
         String serie = sub['serie'];
         int cantidadSerie = sub['cantidad'];
         int taco = sub['taco'] ?? 0;
-        String plataforma = sub['plataforma'] ?? '';
-        String color = sub['colores'] ?? '';
+
+        // Aplica la condición antes de armar la clave
+        String plataforma =
+            _tipoTienePlataforma ? (sub['plataforma'] ?? "0") : "0";
+        String color = _tipoTieneColores ? (sub['colores'] ?? "0") : "0";
 
         List<int> tallas = seriesMap[serie]!;
         for (var talla in tallas) {
@@ -235,13 +237,12 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
           'cantidad': cantidadNueva,
           'talla': talla,
           'taco': _tipoTieneTaco ? taco : 0,
-          'plataforma': _tipoTienePlataforma ? plataforma : '',
-          'colores': _tipoTieneColores ? color : '',
+          'plataforma': _tipoTienePlataforma ? plataforma : "0",
+          'colores': _tipoTieneColores ? color : "0",
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_usuario': widget.emailUser ?? 'anon',
         });
       }
-
       final Map<String, dynamic> payload = {
         'id_inventario': widget.inventarioId,
         'id_calzado': _calzadoId,
@@ -426,9 +427,9 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                       const DropdownMenuItem<String?>(
                           value: null, child: Text('Todas')),
                       ...opcionesPlataforma.map((p) => DropdownMenuItem<String?>(
-                            value: p,
-                            child: Text(p),
-                          )),
+                                value: p,
+                                child: Text(p),
+                              )),
                     ],
                     onChanged: (v) => setState(() {
                       _filtroPlataforma = v;
@@ -608,8 +609,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                       labelText: 'Taco', border: OutlineInputBorder()),
                   value: tacoActual,
                   items: tacos
-                      .map((t) => DropdownMenuItem(
-                          value: t, child: Text(t.toString())))
+                      .map((t) =>
+                          DropdownMenuItem(value: t, child: Text(t.toString())))
                       .toList(),
                   onChanged: (v) =>
                       setState(() => _subfilas[index]['taco'] = v ?? 0),
@@ -620,7 +621,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
               icon: const Icon(Icons.delete, color: Colors.red),
               onPressed: () => setState(() {
                 _subfilas.removeAt(index);
-                final totalPaginas = (_subfilas.length / _itemsPorPagina).ceil();
+                final totalPaginas =
+                    (_subfilas.length / _itemsPorPagina).ceil();
                 if (_paginaActual > totalPaginas && totalPaginas > 0) {
                   _paginaActual = totalPaginas;
                 }
