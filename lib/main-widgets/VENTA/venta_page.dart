@@ -412,13 +412,11 @@ class _VentaPageState extends State<VentaPage> {
     final bool esMuestra = filaData['id_dueno_muestra'] != null;
     final String duenoMuestraNombre =
         filaData['dueno_muestra_nombre'] ?? 'Desconocido';
-
-    final DateTime fechaVenta = filaData['fecha_venta'] != null
-        ? (filaData['fecha_venta'] is DateTime
-            ? filaData['fecha_venta'] as DateTime
-            : DateTime.parse(filaData['fecha_venta'].toString()).toLocal())
-        : DateTime.now();
-
+    final DateTime fechaVenta = (filaData['fecha_venta'] != null
+    ? (filaData['fecha_venta'] is DateTime
+        ? filaData['fecha_venta'] as DateTime
+        : DateTime.parse(filaData['fecha_venta'].toString()))
+    : DateTime.now()).subtract(const Duration(hours: 5));
     final bool esVentaDeHoy = DateFormat('dd/MM/yyyy').format(fechaVenta) ==
         DateFormat('dd/MM/yyyy').format(DateTime.now());
 
@@ -514,7 +512,7 @@ class _VentaPageState extends State<VentaPage> {
                       const SizedBox(width: 8),
                       Expanded(
                           child: Text(
-                              _formatFechaLarga(filaData['fecha_venta']),
+                              _formatFechaLarga(fechaVenta),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade800,
