@@ -191,13 +191,12 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     try {
       final data = await FilaVentaMultipleService.consultarStockCascada(
-        idCalzado: item.calzadoId,
-        idInventario: widget.inventarioId!,
-        talla: item.tallaSeleccionada,
-        colores: item.colorSeleccionado,
-        taco: item.tacoSeleccionado,
-        plataforma: item.plataformaSeleccionada
-      );
+          idCalzado: item.calzadoId,
+          idInventario: widget.inventarioId!,
+          talla: item.tallaSeleccionada,
+          colores: item.colorSeleccionado,
+          taco: item.tacoSeleccionado,
+          plataforma: item.plataformaSeleccionada);
 
       print('Datos recibidos para stock cascada: $data');
 
@@ -301,20 +300,21 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         return {
           'id_calzado': item.calzadoId,
           'talla': item.tallaSeleccionada,
+          // taco es INTEGER: envía un entero 0
           'taco': item.tipoTieneTaco ? (item.tacoSeleccionado ?? 0) : 0,
+          // colores es VARCHAR: si no tiene, envía cadena vacía ""
           'colores':
-              item.tipoTieneColores ? (item.colorSeleccionado ?? '0') : '0',
+              item.tipoTieneColores ? (item.colorSeleccionado ?? "") : "",
+          // plataforma es VARCHAR: si no tiene, envía cadena vacía ""
           'plataforma': item.tipoTienePlataforma
-              ? (item.plataformaSeleccionada ?? '0')
-              : '0',
+              ? (item.plataformaSeleccionada ?? "")
+              : "",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
           'lugar_venta': item.lugarVentaSeleccionado,
         };
       }).toList();
-
-      print(itemsPayload);
 
       final exito = await FilaVentaMultipleService.registrarVentaMultiple(
         idInventario: widget.inventarioId ?? '',
