@@ -154,7 +154,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
           'lugar_venta': item.lugarVentaSeleccionado,
-          'fecha_venta': DateTime.now().toIso8601String(),
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_user': widget.emailUser ?? 'anon',
           'muestra': item.muestra,
