@@ -19,7 +19,6 @@ class DuenoMuestraService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('Dueños de muestra obtenidos exitosamente: ${data.length} registros');
         return List<Map<String, dynamic>>.from(data);
       } else {
         print('Error al listar dueños de muestra. Status code: ${response.statusCode}');
@@ -49,7 +48,6 @@ class DuenoMuestraService {
         final List<dynamic> data = json.decode(response.body);
 
         if (data.isNotEmpty) {
-          print('Dueño de muestra encontrado');
           return data.first as Map<String, dynamic>;
         } else {
           print('No se encontró dueño de muestra con ID: $id');
@@ -89,7 +87,6 @@ class DuenoMuestraService {
       );
 
       if (response.statusCode == 201) {
-        print('Dueño de muestra registrado exitosamente');
         return true;
       } else {
         print('Error al crear dueño de muestra. Status code: ${response.statusCode}');
@@ -126,7 +123,6 @@ class DuenoMuestraService {
       );
 
       if (response.statusCode == 200) {
-        print('Dueño de muestra actualizado exitosamente');
         return true;
       } else {
         print('Error al actualizar dueño de muestra. Status code: ${response.statusCode}');
@@ -153,7 +149,6 @@ class DuenoMuestraService {
       );
 
       if (response.statusCode == 200) {
-        print('Dueño de muestra eliminado correctamente');
         return true;
       } else {
         print('Error al eliminar dueño de muestra. Status code: ${response.statusCode}');

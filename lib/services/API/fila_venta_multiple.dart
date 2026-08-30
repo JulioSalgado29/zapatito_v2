@@ -20,7 +20,6 @@ class FilaVentaMultipleService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print('Calzados cargados exitosamente: ${data.length} registros');
         return List<Map<String, dynamic>>.from(data);
       } else {
         print('Error al obtener calzados. Status code: ${response.statusCode}');
@@ -66,7 +65,6 @@ class FilaVentaMultipleService {
         '${ApiService.baseUrl}/api/fila_venta_multiple/stock-cascada/$intIdInventario',
       ).replace(queryParameters: queryParams.isEmpty ? null : queryParams);
 
-      print('GET URL Cascading: $uri');
 
       final response = await http.get(
         uri,

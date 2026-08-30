@@ -198,7 +198,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           taco: item.tacoSeleccionado,
           plataforma: item.plataformaSeleccionada);
 
-      print('Datos recibidos para stock cascada: $data');
+          print('Datos recibidos para stock cascada: $data');
 
       if (data != null && mounted) {
         setState(() {

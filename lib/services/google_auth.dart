@@ -46,7 +46,6 @@ class GoogleAuthService {
       final googleUser = await googleSignIn.signIn();
 
       // Si el usuario cancela, googleUser será null
-      print("Google User: $googleUser");
       if (googleUser == null) return null;
 
       final googleAuth = await googleUser.authentication;
@@ -62,8 +61,6 @@ class GoogleAuthService {
       );
 
       final userCredential = await auth.signInWithCredential(credential);
-
-      print("USER AFTER LOGIN: ${auth.currentUser}");
 
       // 🔹 Guardar datos del usuario localmente
       final user = userCredential.user;

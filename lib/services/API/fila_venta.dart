@@ -30,12 +30,9 @@ class FilaVentaService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print(
-            'Filas de venta obtenidas exitosamente: ${data.length} registros');
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print(
-            'Error al listar filas de venta. Status code: ${response.statusCode}');
+        print('Error al listar filas de venta. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return [];
       }

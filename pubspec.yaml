@@ -84,6 +84,7 @@ flutter:
   assets:
     - lib/assets/ic_launcher.png
     - lib/assets/logo_inicio.png
+    - lib/assets/logo_login.png
     - lib/assets/calzados/
 
   # To add assets to your application, add an assets section, like this:

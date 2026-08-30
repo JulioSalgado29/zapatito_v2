@@ -117,8 +117,6 @@ class CalzadoService {
         'id_inventario': idInventario,
       });
 
-      print(body);
-
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
