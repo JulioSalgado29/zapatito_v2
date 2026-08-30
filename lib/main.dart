@@ -4,7 +4,6 @@ import 'firebase_options.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; 
 import 'package:zapatito_v2/main-widgets/MAIN/home_page.dart';
 import 'package:zapatito_v2/main-widgets/MAIN/login_page.dart';
-import 'package:zapatito_v2/main-widgets/MAIN/welcome_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 
@@ -45,11 +44,10 @@ class MyApp extends StatelessWidget {
       locale: const Locale('es', 'ES'), // Idioma predeterminado
       // -----------------------------------------------------------------------
 
-      home: const WelcomePage(),
+      home: const LoginPage(),
       routes: {
-        '/welcome_page': (context) => const WelcomePage(),
+        '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
-        '/login': (context) => const LoginPage()
       }
     );
   }

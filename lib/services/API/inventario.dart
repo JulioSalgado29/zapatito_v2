@@ -44,10 +44,10 @@ class InventarioService {
       final bool existe = await verificarInventarioExiste(id ?? '');
 
       if (!existe && context.mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
+        Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const HomePage()),
+                  (route) => false, // Elimina todas las rutas anteriores
+                );
       }
     } catch (e) {
       print("Error al verificar el ID del inventario: $e");

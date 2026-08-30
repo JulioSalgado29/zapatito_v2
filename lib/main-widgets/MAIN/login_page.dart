@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:zapatito_v2/components/Buttons/back_button.dart';
 import 'package:zapatito_v2/components/Buttons/google_button.dart';
-import 'package:zapatito_v2/components/Buttons/login_button.dart';
-import 'package:zapatito_v2/components/Fields/field_form.dart';
-import 'package:zapatito_v2/components/Shapes/container_shape.dart';
-import 'package:zapatito_v2/components/widgets.dart';
+import 'package:zapatito_v2/main-widgets/MAIN/home_page.dart';
+import 'package:zapatito_v2/services/google_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,71 +11,121 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  bool _navigated = false; // 👈 Evita múltiples redirecciones
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfSignedIn();
+  }
+
+  void _checkIfSignedIn() async {
+    if (_navigated) return; // Evita que se ejecute más de una vez
+    _navigated = true;
+
+    final isSignedIn = await GoogleAuthService().isCurrentSignIn();
+    if (!mounted) return;
+
+    if (isSignedIn) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false, // Elimina todas las rutas anteriores
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final height = size.height;
 
     return Scaffold(
-        resizeToAvoidBottomInset: true,
-        body: Stack(
-          children: [
-            /// 👉 Contenido principal con scroll adaptable
-            SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: height,
-                ),
+      body: Stack(
+        children: [
+          /// 1. Fondo principal con degradado morado
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF2A0845), // Morado profundo superior
+                  Color(0xFF150028), // Morado oscuro inferior
+                ],
+              ),
+            ),
+          ),
+
+          /// 2. Contenido vertical centrado y compacto
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      SizedBox(height: height * 0.15),
-                      Designwidgets().tittleCustom("Inicio de Sesión"),
+                      // Espaciado dinámico superior para librar el BackButton
+                      SizedBox(height: height * 0.04),
 
-                      SizedBox(height: height * 0.02),
-                      _emailPasswordWidget(),
-
-                      SizedBox(height: height * 0.025),
-                      const LoginButton(
-                        text: "Iniciar Sesión",
-                        color: Color(0xff3a086c),
-                        textColor: Colors.white,
-                        routeName: '/home',
+                      // Logo de la marca
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.directions_run_rounded,
+                              color: Colors.white, size: 28),
+                          SizedBox(width: 8),
+                          Text(
+                            "Bienvenido a\nZapatito",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
                       ),
 
-                      const SizedBox(height: 8),
-                      Designwidgets().forgottenPassword(),
-                      Designwidgets().divider(),
+                      const SizedBox(height: 12),
+
+                      const SizedBox(height: 20),
+
+                      // ILUSTRACIÓN CENTRAL
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          height: height * 0.28,
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            image: DecorationImage(
+                              image: AssetImage('lib/assets/logo_inicio.png'),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(
+                          height: 24), // Espacio controlado antes del botón
+
+                      // BOTÓN DE GOOGLE
                       const GoogleButton(),
-                      Designwidgets().singupLabel(),
+
+                      const SizedBox(height: 10),
                     ],
                   ),
                 ),
               ),
             ),
-            const ContainerShape01(),
-            /// 👉 Botón flotante sobre todo
-            Positioned(
-              top: height * 0.04,
-              left: 10,
-              child: const BackButton01(),
-            ),
-          ],
-        ),
-      );
-  }
-
-  Widget _emailPasswordWidget() {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FieldForm(tittle: "Email", isPassword: false),
-        SizedBox(height: 16),
-        FieldForm(tittle: "Contraseña", isPassword: true),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

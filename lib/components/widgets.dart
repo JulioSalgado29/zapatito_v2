@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:zapatito_v2/main-widgets/MAIN/welcome_page.dart';
+import 'package:zapatito_v2/main-widgets/MAIN/login_page.dart';
 import 'package:zapatito_v2/services/google_auth.dart';
 
 class Designwidgets {
@@ -33,16 +33,16 @@ class Designwidgets {
   }
 
   LinearGradient linearGradientPurple(BuildContext context) {
-  return const LinearGradient(
-    colors: [
-      Color(0xFF6A11CB), // Púrpura azulado (conecta con el azul)
-      Color(0xFF8E24AA), // Violeta medio
-      Color(0xFFD81B60), // Rosa/Rojo intenso (conecta con el fuego)
-    ],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-}
+    return const LinearGradient(
+      colors: [
+        Color(0xFF6A11CB), // Púrpura azulado (conecta con el azul)
+        Color(0xFF8E24AA), // Violeta medio
+        Color(0xFFD81B60), // Rosa/Rojo intenso (conecta con el fuego)
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
 
   LinearGradient linearGradientFire(BuildContext context) {
     return const LinearGradient(
@@ -199,10 +199,14 @@ class Designwidgets {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar sesión'),
-            onTap: () {
-              GoogleAuthService().signOut();
-              Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const WelcomePage()));
+            onTap: () async {
+              await GoogleAuthService().signOut();
+              if (!context.mounted) return;
+
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false, // Elimina todas las rutas anteriores
+              );
             },
           ),
         ],
