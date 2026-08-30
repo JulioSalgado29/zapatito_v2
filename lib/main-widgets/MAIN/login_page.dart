@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/Buttons/google_button.dart';
 import 'package:zapatito_v2/main-widgets/MAIN/home_page.dart';
+import 'package:zapatito_v2/services/API/sesion_google_log_service.dart';
 import 'package:zapatito_v2/services/google_auth.dart';
 
 class LoginPage extends StatefulWidget {
@@ -12,6 +13,10 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _navigated = false; // 👈 Evita múltiples redirecciones
+
+  Future<void> _saveUserLog() async {
+    await SesionGoogleLogService.registrarLogDesdeStorage();
+  }
 
   @override
   void initState() {
@@ -27,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (isSignedIn) {
+      await _saveUserLog();
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomePage()),
         (route) => false, // Elimina todas las rutas anteriores
