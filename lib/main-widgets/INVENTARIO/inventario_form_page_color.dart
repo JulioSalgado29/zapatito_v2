@@ -293,7 +293,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   }
 
   Widget _buildSeccionFiltros(int visibles, int total) {
-    final tallas = List.generate(18, (i) => i + 25);
+    final tallas = List.generate(18, (i) => i + 22);
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
 
@@ -554,7 +554,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
   Widget _buildMiniSubfilaItem(int colorIndex, int miniIndex) {
     final mini = _subfilasColor[colorIndex]['minisubfilas'][miniIndex];
-    final tallas = List.generate(18, (i) => i + 25);
+    final tallas = List.generate(18, (i) => i + 22);
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
 
