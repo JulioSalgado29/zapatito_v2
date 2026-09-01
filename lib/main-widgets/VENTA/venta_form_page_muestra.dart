@@ -193,62 +193,136 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   }
 
   Widget _buildDropdownCalzado(int index) {
+    final itemActual = _itemsVenta[index];
+
+    // Buscamos el calzado seleccionado dentro de la lista para obtener su icono
+    Map<String, dynamic>? calzadoSeleccionado;
+    if (itemActual.calzadoId != null) {
+      calzadoSeleccionado = _calzados.firstWhere(
+        (c) => c['id_calzado'].toString() == itemActual.calzadoId,
+        orElse: () => {},
+      );
+    }
+
+    final String? iconoSeleccionado = calzadoSeleccionado?['icono'];
+
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: DropdownButtonFormField<String>(
-        decoration: const InputDecoration(
-            labelText: 'Calzado', border: OutlineInputBorder()),
-        value: _itemsVenta[index].calzadoId,
-        items: _calzados.map((data) {
-          final String idStr = data['id_calzado'].toString();
-          final String? icono = data['icono'];
-          return DropdownMenuItem(
-            value: idStr,
-            child: Row(
-              children: [
-                if (icono != null && icono.isNotEmpty)
-                  Image.asset(
-                    icono,
-                    width: 24,
-                    height: 24,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.image_not_supported, size: 24),
-                  ),
-                const SizedBox(width: 8),
-                Text(data['nombre'] ?? 'S/N'),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: (v) async {
-          if (v == null) return;
-          
+      child: Autocomplete<Map<String, dynamic>>(
+        displayStringForOption: (Map<String, dynamic> option) =>
+            option['nombre'] ?? 'S/N',
+        optionsBuilder: (TextEditingValue textEditingValue) {
+          if (textEditingValue.text.isEmpty) {
+            return _calzados;
+          }
+          return _calzados.where((data) {
+            final nombre = (data['nombre'] ?? '').toString().toLowerCase();
+            return nombre.contains(textEditingValue.text.toLowerCase());
+          });
+        },
+        onSelected: (Map<String, dynamic> selection) async {
+          final String idStr = selection['id_calzado'].toString();
           Map<String, dynamic>? data;
 
-          // Si ya existe en caché, evitamos consultar la API de nuevo
-          if (_calzadoDetallesCache.containsKey(v)) {
-            data = _calzadoDetallesCache[v];
+          if (_calzadoDetallesCache.containsKey(idStr)) {
+            data = _calzadoDetallesCache[idStr];
           } else {
-            data = await CalzadoService.obtenerPorId(v);
+            data = await CalzadoService.obtenerPorId(idStr);
             if (data != null) {
-              _calzadoDetallesCache[v] = data;
+              _calzadoDetallesCache[idStr] = data;
             }
           }
 
           if (data != null && mounted) {
             setState(() {
-              var item = _itemsVenta[index];
-              item.calzadoId = v;
-              item.tipoTieneTaco = data!['taco'] ?? false;
-              item.tipoTienePlataforma = data['plataforma'] ?? false;
-              item.tipoTieneColores = data['colores'] ?? false;
+              itemActual.calzadoId = idStr;
+              itemActual.tipoTieneTaco = data!['taco'] ?? false;
+              itemActual.tipoTienePlataforma = data['plataforma'] ?? false;
+              itemActual.tipoTieneColores = data['colores'] ?? false;
             });
           }
+        },
+        fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+          return TextFormField(
+            controller: controller,
+            focusNode: focusNode,
+            onEditingComplete: onEditingComplete,
+            decoration: InputDecoration(
+              labelText: 'Buscar o Seleccionar Calzado',
+              border: const OutlineInputBorder(),
+              // 🔹 Muestra la imagen del calzado a la izquierda si ya hay uno seleccionado
+              prefixIcon: (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
+                  ? Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Image.asset(
+                        iconoSeleccionado,
+                        width: 24,
+                        height: 24,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.image_not_supported, size: 24),
+                      ),
+                    )
+                  : null,
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.arrow_drop_down),
+                onPressed: () {
+                  if (focusNode.hasFocus) {
+                    focusNode.unfocus();
+                  } else {
+                    focusNode.requestFocus();
+                  }
+                },
+              ),
+            ),
+            onChanged: (text) {
+              if (itemActual.calzadoId != null) {
+                setState(() {
+                  itemActual.calzadoId = null;
+                });
+              }
+            },
+          );
+        },
+        optionsViewBuilder: (context, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 250),
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width - 56,
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (BuildContext context, int optionIndex) {
+                      final option = options.elementAt(optionIndex);
+                      final String? icono = option['icono'];
+
+                      return ListTile(
+                        leading: (icono != null && icono.isNotEmpty)
+                            ? Image.asset(
+                                icono,
+                                width: 28,
+                                height: 28,
+                                errorBuilder: (_, __, ___) =>
+                                    const Icon(Icons.image_not_supported, size: 28),
+                              )
+                            : const Icon(Icons.category, size: 28),
+                        title: Text(option['nombre'] ?? 'S/N'),
+                        onTap: () => onSelected(option),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          );
         },
       ),
     );
   }
-
   Widget _buildCascadaAtributos(int index) {
     var item = _itemsVenta[index];
     if (item.calzadoId == null) return const SizedBox();

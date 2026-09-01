@@ -29,6 +29,8 @@ class VentaItem {
   String? metodoPagoSeleccionado;
   String? lugarVentaSeleccionado;
 
+  // 🔹 Controlador para el texto del Autocomplete
+  final TextEditingController calzadoController = TextEditingController();
   final TextEditingController cantidadController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
 
@@ -55,11 +57,13 @@ class VentaItem {
     tipoTieneColores = false;
     metodoPagoSeleccionado = null;
     lugarVentaSeleccionado = null;
+    calzadoController.clear();
     cantidadController.clear();
     precioController.clear();
   }
 
   void dispose() {
+    calzadoController.dispose(); // 🔹 Liberar recurso
     cantidadController.dispose();
     precioController.dispose();
   }
@@ -370,43 +374,40 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
       }
     }
 
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-        labelText: 'Calzado',
-        border: OutlineInputBorder(),
-      ),
-      value: calzadosFiltrados
-              .any((c) => c['id_calzado'].toString() == item.calzadoId)
-          ? item.calzadoId
-          : null,
-      items: calzadosFiltrados.map((calzado) {
-        final idStr = calzado['id_calzado'].toString();
-        final icono = calzado['icono'];
-        return DropdownMenuItem(
-          value: idStr,
-          child: Row(
-            children: [
-              if (icono != null && icono.isNotEmpty)
-                Image.asset(
-                  icono,
-                  width: 24,
-                  height: 24,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.image_not_supported, size: 24),
-                ),
-              const SizedBox(width: 8),
-              Text(calzado['nombre'] ?? 'S/N'),
-            ],
-          ),
-        );
-      }).toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        final calzadoSel =
-            _listaCalzados.firstWhere((c) => c['id_calzado'].toString() == v);
+    Map<String, dynamic>? calzadoSeleccionado;
+    if (item.calzadoId != null) {
+      final encontrado = calzadosFiltrados.firstWhere(
+        (c) => c['id_calzado'].toString() == item.calzadoId,
+        orElse: () => <String, dynamic>{},
+      );
+      
+      if (encontrado.isNotEmpty) {
+        calzadoSeleccionado = encontrado as Map<String, dynamic>;
+      }
+    }
+
+    final String? iconoSeleccionado = calzadoSeleccionado?['icono'];
+
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (Map<String, dynamic> option) =>
+          option['nombre'] ?? 'S/N',
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return calzadosFiltrados.cast<Map<String, dynamic>>();
+        }
+        return calzadosFiltrados
+            .where((c) {
+              final nombre = (c['nombre'] ?? '').toString().toLowerCase();
+              return nombre.contains(textEditingValue.text.toLowerCase());
+            })
+            .cast<Map<String, dynamic>>();
+      },
+      onSelected: (Map<String, dynamic> calzadoSel) {
+        final v = calzadoSel['id_calzado'].toString();
 
         setState(() {
           item.calzadoId = v;
+          item.calzadoController.text = calzadoSel['nombre'] ?? ''; // 🔹 Asigna el texto seleccionado
           item.tipoTieneTaco = calzadoSel['taco'] ?? false;
           item.tipoTienePlataforma = calzadoSel['plataforma'] ?? false;
           item.tipoTieneColores = calzadoSel['colores'] ?? false;
@@ -419,9 +420,92 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
         _actualizarStockCascada(index);
       },
+      fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+        // 🔹 Si el item se limpió, sincronizamos el controller del Autocomplete con el de item
+        if (item.calzadoId == null && item.calzadoController.text.isEmpty && controller.text.isNotEmpty) {
+          controller.clear();
+        }
+
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          onEditingComplete: onEditingComplete,
+          decoration: InputDecoration(
+            labelText: 'Calzado',
+            border: const OutlineInputBorder(),
+            prefixIcon: (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.asset(
+                      iconoSeleccionado,
+                      width: 24,
+                      height: 24,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.image_not_supported, size: 24),
+                    ),
+                  )
+                : null,
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.arrow_drop_down),
+              onPressed: () {
+                if (focusNode.hasFocus) {
+                  focusNode.unfocus();
+                } else {
+                  focusNode.requestFocus();
+                }
+              },
+            ),
+          ),
+          onChanged: (text) {
+            item.calzadoController.text = text;
+            if (item.calzadoId != null) {
+              setState(() {
+                item.calzadoId = null;
+              });
+            }
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 250),
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width - 56,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (BuildContext context, int optionIndex) {
+                    final option = options.elementAt(optionIndex);
+                    final String? icono = option['icono'];
+
+                    return ListTile(
+                      leading: (icono != null && icono.isNotEmpty)
+                          ? Image.asset(
+                              icono,
+                              width: 28,
+                              height: 28,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.image_not_supported, size: 28),
+                            )
+                          : const Icon(Icons.category, size: 28),
+                      title: Text(option['nombre'] ?? 'S/N'),
+                      onTap: () => onSelected(option),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
-
+  
   Widget _buildDropdownTalla(int index) {
     var item = _itemsVenta[index];
 
