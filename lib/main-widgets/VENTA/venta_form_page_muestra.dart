@@ -374,7 +374,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             decoration: const InputDecoration(
                 labelText: 'Talla', border: OutlineInputBorder()),
             value: item.tallaSeleccionada,
-            items: List.generate(11, (i) => i + 30)
+            items: List.generate(21, (i) => i + 22)
                 .map((t) =>
                     DropdownMenuItem(value: t, child: Text(t.toString())))
                 .toList(),
