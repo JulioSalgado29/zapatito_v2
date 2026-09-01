@@ -306,7 +306,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   }
 
   Widget _buildSeccionFiltros(int visibles, int total) {
-    final tallas = List.generate(18, (i) => i + 22);
+    final tallas = List.generate(21, (i) => i + 22);
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
 
@@ -573,7 +573,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
   Widget _buildSubfilaItem(int index) {
     final sub = _subfilas[index];
-    final tallas = List.generate(18, (i) => i + 22);
+    final tallas = List.generate(21, (i) => i + 22);
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
 
