@@ -27,10 +27,33 @@ class VentaItem {
   String? metodoPagoSeleccionado;
   String? lugarVentaSeleccionado;
 
+  // 🔹 Controladores para los campos de texto
+  final TextEditingController calzadoController = TextEditingController();
   final TextEditingController cantidadController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
 
+  void limpiar() {
+    duenoMuestraId = null;
+    calzadoId = null;
+    tallaSeleccionada = null;
+    tacoSeleccionado = null;
+    colorSeleccionado = null;
+    plataformaSeleccionada = null;
+    cantidadVenta = 0;
+    precioVentaTotal = 0.0;
+    muestra = true;
+    tipoTieneTaco = false;
+    tipoTienePlataforma = false;
+    tipoTieneColores = false;
+    metodoPagoSeleccionado = null;
+    lugarVentaSeleccionado = null;
+    calzadoController.clear();
+    cantidadController.clear();
+    precioController.clear();
+  }
+
   void dispose() {
+    calzadoController.dispose();
     cantidadController.dispose();
     precioController.dispose();
   }
@@ -58,7 +81,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   // Data general que solo se consulta 1 vez
   List<Map<String, dynamic>> _duenosMuestra = [];
   List<Map<String, dynamic>> _calzados = [];
-  
+
   // Caché de detalles de calzado (para no reconsultar si ya se trajo una vez)
   final Map<String, Map<String, dynamic>> _calzadoDetallesCache = {};
 
@@ -129,12 +152,16 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   }
 
   void _eliminarItem(int index) {
-    if (_itemsVenta.length > 1) {
-      setState(() {
-        _itemsVenta[index].dispose();
-        _itemsVenta.removeAt(index);
-      });
-    }
+    setState(() {
+      _itemsVenta[index].dispose();
+      _itemsVenta.removeAt(index);
+    });
+  }
+
+  void _limpiarItem(int index) {
+    setState(() {
+      _itemsVenta[index].limpiar();
+    });
   }
 
   Future<void> _realizarVenta() async {
@@ -236,6 +263,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           if (data != null && mounted) {
             setState(() {
               itemActual.calzadoId = idStr;
+              itemActual.calzadoController.text = selection['nombre'] ?? '';
               itemActual.tipoTieneTaco = data!['taco'] ?? false;
               itemActual.tipoTienePlataforma = data['plataforma'] ?? false;
               itemActual.tipoTieneColores = data['colores'] ?? false;
@@ -243,6 +271,13 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           }
         },
         fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+          // 🔹 Sincroniza la limpieza si el objeto fue reseteado mediante _limpiarItem
+          if (itemActual.calzadoId == null &&
+              itemActual.calzadoController.text.isEmpty &&
+              controller.text.isNotEmpty) {
+            controller.clear();
+          }
+
           return TextFormField(
             controller: controller,
             focusNode: focusNode,
@@ -251,18 +286,19 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
               labelText: 'Buscar o Seleccionar Calzado',
               border: const OutlineInputBorder(),
               // 🔹 Muestra la imagen del calzado a la izquierda si ya hay uno seleccionado
-              prefixIcon: (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
-                  ? Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Image.asset(
-                        iconoSeleccionado,
-                        width: 24,
-                        height: 24,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.image_not_supported, size: 24),
-                      ),
-                    )
-                  : null,
+              prefixIcon:
+                  (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
+                      ? Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Image.asset(
+                            iconoSeleccionado,
+                            width: 24,
+                            height: 24,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.image_not_supported, size: 24),
+                          ),
+                        )
+                      : null,
               suffixIcon: IconButton(
                 icon: const Icon(Icons.arrow_drop_down),
                 onPressed: () {
@@ -275,6 +311,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
               ),
             ),
             onChanged: (text) {
+              itemActual.calzadoController.text = text;
               if (itemActual.calzadoId != null) {
                 setState(() {
                   itemActual.calzadoId = null;
@@ -306,8 +343,9 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                                 icono,
                                 width: 28,
                                 height: 28,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(Icons.image_not_supported, size: 28),
+                                errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.image_not_supported,
+                                    size: 28),
                               )
                             : const Icon(Icons.category, size: 28),
                         title: Text(option['nombre'] ?? 'S/N'),
@@ -323,6 +361,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
       ),
     );
   }
+
   Widget _buildCascadaAtributos(int index) {
     var item = _itemsVenta[index];
     if (item.calzadoId == null) return const SizedBox();
@@ -538,11 +577,22 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                           Text('Venta #${index + 1}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 16)),
-                          if (_itemsVenta.length > 1)
-                            IconButton(
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.cleaning_services,
+                                    color: Colors.orange),
+                                tooltip: 'Limpiar campos',
+                                onPressed: () => _limpiarItem(index),
+                              ),
+                              IconButton(
                                 icon:
                                     const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _eliminarItem(index)),
+                                tooltip: 'Eliminar ítem',
+                                onPressed: () => _eliminarItem(index),
+                              ),
+                            ],
+                          ),
                         ]),
                     const Divider(),
                     _buildDropdownDueno(index),
