@@ -83,10 +83,10 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
     try {
       // 1. Obtenemos calzados del inventario y el detalle del calzado a editar en paralelo
-      final calzadosFuture = CalzadoService.obtenerPorInventario(widget.inventarioId);
+      final calzadosFuture = CalzadoService.obtenerPorInventarioUpdate(widget.inventarioId);
       final detalleCalzadoFuture = CalzadoService.obtenerPorId(cId);
 
-      final resultados = await Future.wait([calzadosFuture, detalleCalzadoFuture]);
+      final resultados =await Future.wait([calzadosFuture, detalleCalzadoFuture]);
 
       final listaCalzados = resultados[0] as List<Map<String, dynamic>>;
       final data = resultados[1] as Map<String, dynamic>?;
@@ -171,25 +171,25 @@ class _VentaFormPageState extends State<VentaFormPage> {
     );
 
     final exito = await FilaVentaService.editarVenta(
-  idFilaVenta: widget.ventaId,
-  data: {
-    'id_inventario': widget.inventarioId,
-    'id_calzado': _calzadoId,
-    'talla': _tallaSeleccionada,
-    // colores es VARCHAR: si no tiene o es nulo, envía "0"
-    'colores': _tipoTieneColores ? (_colorSeleccionado ?? "0") : "0",
-    // taco es INTEGER: si no tiene o es nulo, envía 0
-    'taco': _tipoTieneTaco ? (_tacoSeleccionado ?? 0) : 0,
-    // plataforma es VARCHAR: si no tiene o es nulo, envía "0"
-    'plataforma': _tipoTienePlataforma ? (_plataformaSeleccionada ?? "0") : "0",
-    'cantidad': _cantidadVenta,
-    'precio_venta_total': _precioVentaTotal,
-    'metodo_pago': _metodoPagoSeleccionado,
-    'lugar_venta': _lugarVentaSeleccionado,
-    'usuario_creacion': widget.firstName ?? 'anon',
-    'email_user': widget.emailUser ?? 'anon',
-  },
-);
+      idFilaVenta: widget.ventaId,
+      data: {
+        'id_inventario': widget.inventarioId,
+        'id_calzado': _calzadoId,
+        'talla': _tallaSeleccionada,
+        // colores es VARCHAR: si no tiene o es nulo, envía "0"
+        'colores': _tipoTieneColores ? (_colorSeleccionado ?? "0") : "0",
+        // taco es INTEGER: si no tiene o es nulo, envía 0
+        'taco': _tipoTieneTaco ? (_tacoSeleccionado ?? 0) : 0,
+        // plataforma es VARCHAR: si no tiene o es nulo, envía "0"
+        'plataforma': _tipoTienePlataforma ? (_plataformaSeleccionada ?? "0") : "0",
+        'cantidad': _cantidadVenta,
+        'precio_venta_total': _precioVentaTotal,
+        'metodo_pago': _metodoPagoSeleccionado,
+        'lugar_venta': _lugarVentaSeleccionado,
+        'usuario_creacion': widget.firstName ?? 'anon',
+        'email_user': widget.emailUser ?? 'anon',
+      },
+    );
 
     if (mounted) Navigator.of(context, rootNavigator: true).pop();
 

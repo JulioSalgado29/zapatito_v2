@@ -413,10 +413,11 @@ class _VentaPageState extends State<VentaPage> {
     final String duenoMuestraNombre =
         filaData['dueno_muestra_nombre'] ?? 'Desconocido';
     final DateTime fechaVenta = (filaData['fecha_venta'] != null
-    ? (filaData['fecha_venta'] is DateTime
-        ? filaData['fecha_venta'] as DateTime
-        : DateTime.parse(filaData['fecha_venta'].toString()))
-    : DateTime.now()).subtract(const Duration(hours: 5));
+            ? (filaData['fecha_venta'] is DateTime
+                ? filaData['fecha_venta'] as DateTime
+                : DateTime.parse(filaData['fecha_venta'].toString()))
+            : DateTime.now())
+        .subtract(const Duration(hours: 5));
     final bool esVentaDeHoy = DateFormat('dd/MM/yyyy').format(fechaVenta) ==
         DateFormat('dd/MM/yyyy').format(DateTime.now());
 
@@ -451,7 +452,14 @@ class _VentaPageState extends State<VentaPage> {
           ExpansionTile(
             shape: const Border(),
             leading: _buildIcon(filaData['calzado_icono']),
-            title: Text(filaData['calzado_nombre'] ?? 'Sin nombre',
+            title: Text(
+                (filaData['descripcion_muestra'] != null &&
+                        filaData['descripcion_muestra']
+                            .toString()
+                            .trim()
+                            .isNotEmpty)
+                    ? filaData['descripcion_muestra']
+                    : (filaData['calzado_nombre'] ?? 'Sin nombre'),
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             subtitle: Column(
@@ -511,8 +519,7 @@ class _VentaPageState extends State<VentaPage> {
                           size: 12, color: Colors.blue),
                       const SizedBox(width: 8),
                       Expanded(
-                          child: Text(
-                              _formatFechaLarga(fechaVenta),
+                          child: Text(_formatFechaLarga(fechaVenta),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey.shade800,

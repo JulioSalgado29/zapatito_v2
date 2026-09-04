@@ -2,60 +2,51 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
-import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/dueno_muestra.dart';
 import 'package:zapatito_v2/services/API/fila_venta.dart';
 
 // Modelo para manejar cada fila de venta independiente
 class VentaItem {
   String? duenoMuestraId;
-  String? calzadoId;
+  String descripcionMuestra = '';
   int? tallaSeleccionada;
-  int? tacoSeleccionado;
   String? colorSeleccionado;
-  String? plataformaSeleccionada;
 
   int cantidadVenta = 0;
   double precioVentaTotal = 0.0;
 
   bool muestra = true;
 
-  bool tipoTieneTaco = false;
-  bool tipoTienePlataforma = false;
-  bool tipoTieneColores = false;
-
   String? metodoPagoSeleccionado;
   String? lugarVentaSeleccionado;
 
   // 🔹 Controladores para los campos de texto
-  final TextEditingController calzadoController = TextEditingController();
+  final TextEditingController muestraController = TextEditingController();
   final TextEditingController cantidadController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
+  final TextEditingController colorController = TextEditingController();
 
   void limpiar() {
     duenoMuestraId = null;
-    calzadoId = null;
+    descripcionMuestra = '';
     tallaSeleccionada = null;
-    tacoSeleccionado = null;
     colorSeleccionado = null;
-    plataformaSeleccionada = null;
     cantidadVenta = 0;
     precioVentaTotal = 0.0;
     muestra = true;
-    tipoTieneTaco = false;
-    tipoTienePlataforma = false;
-    tipoTieneColores = false;
     metodoPagoSeleccionado = null;
     lugarVentaSeleccionado = null;
-    calzadoController.clear();
+    muestraController.clear();
     cantidadController.clear();
     precioController.clear();
+    colorController.clear();
   }
 
   void dispose() {
-    calzadoController.dispose();
+    muestraController.dispose();
     cantidadController.dispose();
     precioController.dispose();
+    colorController.dispose();
   }
 }
 
@@ -80,10 +71,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
   // Data general que solo se consulta 1 vez
   List<Map<String, dynamic>> _duenosMuestra = [];
-  List<Map<String, dynamic>> _calzados = [];
-
-  // Caché de detalles de calzado (para no reconsultar si ya se trajo una vez)
-  final Map<String, Map<String, dynamic>> _calzadoDetallesCache = {};
 
   bool _cargandoInicial = true;
 
@@ -114,17 +101,12 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     }
 
     try {
-      final duenosFuturo =
-          DuenoMuestraService.obtenerPorInventario(widget.inventarioId!);
-      final calzadosFuturo =
-          CalzadoService.obtenerPorInventario(widget.inventarioId!);
-
-      final resultados = await Future.wait([duenosFuturo, calzadosFuturo]);
+      final duenos =
+          await DuenoMuestraService.obtenerPorInventario(widget.inventarioId!);
 
       if (mounted) {
         setState(() {
-          _duenosMuestra = resultados[0];
-          _calzados = resultados[1];
+          _duenosMuestra = duenos;
           _cargandoInicial = false;
         });
         _agregarNuevoItem();
@@ -172,9 +154,10 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           'id_inventario': widget.inventarioId,
           'id_dueno_muestra': item.duenoMuestraId,
           'id_calzado': 152,
+          'descripcion_muestra': item.descripcionMuestra,
           'talla': item.tallaSeleccionada,
           'taco': 0,
-          'colores': "0",
+          'colores': item.colorSeleccionado,
           'plataforma': "0",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
@@ -218,152 +201,45 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     );
   }
 
-  Widget _buildDropdownCalzado(int index) {
-    final itemActual = _itemsVenta[index];
+  Widget _buildInputDescripcionMuestra(int index) {
+  final itemActual = _itemsVenta[index];
+  final bool tieneTexto = itemActual.descripcionMuestra.trim().isNotEmpty;
 
-    // Buscamos el calzado seleccionado dentro de la lista para obtener su icono
-    Map<String, dynamic>? calzadoSeleccionado;
-    if (itemActual.calzadoId != null) {
-      calzadoSeleccionado = _calzados.firstWhere(
-        (c) => c['id_calzado'].toString() == itemActual.calzadoId,
-        orElse: () => {},
-      );
-    }
-
-    final String? iconoSeleccionado = calzadoSeleccionado?['icono'];
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Autocomplete<Map<String, dynamic>>(
-        displayStringForOption: (Map<String, dynamic> option) =>
-            option['nombre'] ?? 'S/N',
-        optionsBuilder: (TextEditingValue textEditingValue) {
-          if (textEditingValue.text.isEmpty) {
-            return _calzados;
-          }
-          return _calzados.where((data) {
-            final nombre = (data['nombre'] ?? '').toString().toLowerCase();
-            return nombre.contains(textEditingValue.text.toLowerCase());
-          });
-        },
-        onSelected: (Map<String, dynamic> selection) async {
-          final String idStr = selection['id_calzado'].toString();
-          Map<String, dynamic>? data;
-
-          if (_calzadoDetallesCache.containsKey(idStr)) {
-            data = _calzadoDetallesCache[idStr];
-          } else {
-            data = await CalzadoService.obtenerPorId(idStr);
-            if (data != null) {
-              _calzadoDetallesCache[idStr] = data;
-            }
-          }
-
-          if (data != null && mounted) {
-            setState(() {
-              itemActual.calzadoId = idStr;
-              itemActual.calzadoController.text = selection['nombre'] ?? '';
-              itemActual.tipoTieneTaco = data!['taco'] ?? false;
-              itemActual.tipoTienePlataforma = data['plataforma'] ?? false;
-              itemActual.tipoTieneColores = data['colores'] ?? false;
-            });
-          }
-        },
-        fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-          // 🔹 Sincroniza la limpieza si el objeto fue reseteado mediante _limpiarItem
-          if (itemActual.calzadoId == null &&
-              itemActual.calzadoController.text.isEmpty &&
-              controller.text.isNotEmpty) {
-            controller.clear();
-          }
-
-          return TextFormField(
-            controller: controller,
-            focusNode: focusNode,
-            onEditingComplete: onEditingComplete,
-            decoration: InputDecoration(
-              labelText: 'Buscar o Seleccionar Calzado',
-              border: const OutlineInputBorder(),
-              // 🔹 Muestra la imagen del calzado a la izquierda si ya hay uno seleccionado
-              prefixIcon:
-                  (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
-                      ? Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Image.asset(
-                            iconoSeleccionado,
-                            width: 24,
-                            height: 24,
-                            errorBuilder: (_, __, ___) =>
-                                const Icon(Icons.image_not_supported, size: 24),
-                          ),
-                        )
-                      : null,
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.arrow_drop_down),
-                onPressed: () {
-                  if (focusNode.hasFocus) {
-                    focusNode.unfocus();
-                  } else {
-                    focusNode.requestFocus();
-                  }
-                },
-              ),
-            ),
-            onChanged: (text) {
-              itemActual.calzadoController.text = text;
-              if (itemActual.calzadoId != null) {
-                setState(() {
-                  itemActual.calzadoId = null;
-                });
-              }
-            },
-          );
-        },
-        optionsViewBuilder: (context, onSelected, options) {
-          return Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 250),
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width - 56,
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (BuildContext context, int optionIndex) {
-                      final option = options.elementAt(optionIndex);
-                      final String? icono = option['icono'];
-
-                      return ListTile(
-                        leading: (icono != null && icono.isNotEmpty)
-                            ? Image.asset(
-                                icono,
-                                width: 28,
-                                height: 28,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.image_not_supported,
-                                    size: 28),
-                              )
-                            : const Icon(Icons.category, size: 28),
-                        title: Text(option['nombre'] ?? 'S/N'),
-                        onTap: () => onSelected(option),
-                      );
-                    },
+  return Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: TextFormField(
+      controller: itemActual.muestraController,
+      decoration: InputDecoration(
+        labelText: 'Descripción de la Muestra',
+        border: const OutlineInputBorder(),
+        prefixIcon: tieneTexto
+            ? Padding(
+                padding: const EdgeInsets.all(10.0), // Ajusta el espacio interno
+                child: Image.asset(
+                  'lib/assets/calzados/muestra.png',
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.green,
                   ),
                 ),
-              ),
-            ),
-          );
-        },
+              )
+            : null,
       ),
-    );
-  }
+      onChanged: (text) {
+        setState(() {
+          itemActual.descripcionMuestra = text;
+        });
+      },
+    ),
+  );
+}
 
   Widget _buildCascadaAtributos(int index) {
     var item = _itemsVenta[index];
-    if (item.calzadoId == null) return const SizedBox();
+    if (item.descripcionMuestra.trim().isEmpty) return const SizedBox();
 
     return Column(
       children: [
@@ -380,50 +256,24 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             onChanged: (v) => setState(() => item.tallaSeleccionada = v),
           ),
         ),
-        if (item.tipoTieneColores)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                  labelText: 'Color',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.palette)),
-              onChanged: (v) => setState(() => item.colorSeleccionado = v),
-            ),
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: TextFormField(
+            controller: item.colorController,
+            decoration: const InputDecoration(
+                labelText: 'Color',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.palette)),
+            onChanged: (v) => setState(() => item.colorSeleccionado = v),
           ),
-        if (item.tipoTieneTaco)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: DropdownButtonFormField<int>(
-              decoration: const InputDecoration(
-                  labelText: 'Taco (cm)', border: OutlineInputBorder()),
-              value: item.tacoSeleccionado,
-              items: [3, 5, 7, 9]
-                  .map((t) => DropdownMenuItem(value: t, child: Text('$t cm')))
-                  .toList(),
-              onChanged: (v) => setState(() => item.tacoSeleccionado = v),
-            ),
-          ),
-        if (item.tipoTienePlataforma)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                  labelText: 'Plataforma', border: OutlineInputBorder()),
-              value: item.plataformaSeleccionada,
-              items: ['Baja', 'Media', 'Alta']
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.plataformaSeleccionada = v),
-            ),
-          ),
+        ),
       ],
     );
   }
 
   Widget _buildPagoYLugar(int index) {
     var item = _itemsVenta[index];
-    if (item.calzadoId == null) return const SizedBox();
+    if (item.descripcionMuestra.trim().isEmpty) return const SizedBox();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -469,7 +319,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
   Widget _buildCantidadYPrecio(int index) {
     var item = _itemsVenta[index];
-    if (item.calzadoId == null) return const SizedBox();
+    if (item.descripcionMuestra.trim().isEmpty) return const SizedBox();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -546,7 +396,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
     bool puedeVenderTodo = _itemsVenta.isNotEmpty &&
         _itemsVenta.every((i) =>
-            i.calzadoId != null &&
+            i.descripcionMuestra.trim().isNotEmpty &&
             i.duenoMuestraId != null &&
             i.tallaSeleccionada != null &&
             i.metodoPagoSeleccionado != null &&
@@ -595,7 +445,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                         ]),
                     const Divider(),
                     _buildDropdownDueno(index),
-                    _buildDropdownCalzado(index),
+                    _buildInputDescripcionMuestra(index),
                     _buildCascadaAtributos(index),
                     _buildPagoYLugar(index),
                     _buildCantidadYPrecio(index),
