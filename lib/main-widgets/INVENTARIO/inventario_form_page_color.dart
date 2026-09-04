@@ -50,7 +50,17 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       _filtroPlataforma != null ||
       _filtroColor.trim().isNotEmpty;
 
-  int _cantidadFila = 0;
+  // Getter para calcular la cantidad total general sumando todas las subfilas
+  int get _cantidadFila {
+    int total = 0;
+    for (var bloque in _subfilasColor) {
+      final miniSubfilas = (bloque['minisubfilas'] as List<dynamic>?) ?? [];
+      for (var mini in miniSubfilas) {
+        total += ((mini['cantidad'] ?? 0) as int);
+      }
+    }
+    return total;
+  }
 
   final List<Map<String, dynamic>> _subfilasColor = [];
   final Map<String, String?> _iconCache = {};
@@ -74,13 +84,12 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     _subfilasColor.add({
       'color': '',
       'cantidad_color': 0,
-      // Forzamos el tipo List<Map<String, dynamic>> para evitar restricción de tipos int
       'minisubfilas': <Map<String, dynamic>>[
         <String, dynamic>{
           'cantidad': 0,
           'talla': 0,
           'taco': 0,
-          'plataforma': null, // Puede recibir String o null
+          'plataforma': null,
         }
       ]
     });
@@ -147,7 +156,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   Future<void> _guardarFilaInventario() async {
     if (_calzadoId == null || _cantidadFila <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Selecciona un calzado y una cantidad válida')));
+          content:
+              Text('Selecciona un calzado y registra al menos una cantidad')));
       return;
     }
 
@@ -157,14 +167,12 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       return;
     }
 
-    int sumaTotalColores = 0;
     final combinaciones = <String>{};
     final List<Map<String, dynamic>> subfilasAplanadas = [];
 
     for (var i = 0; i < _subfilasColor.length; i++) {
       final bloqueColor = _subfilasColor[i];
       final colorNombre = (bloqueColor['color'] ?? '').toString().trim();
-      final cantidadColor = (bloqueColor['cantidad_color'] ?? 0) as int;
       final miniSubfilas =
           (bloqueColor['minisubfilas'] as List<dynamic>?) ?? [];
 
@@ -174,15 +182,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 'Ingresa un nombre de color válido en la sección #${i + 1}')));
         return;
       }
-
-      if (cantidadColor <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content:
-                Text('El total del color "$colorNombre" debe ser mayor a 0')));
-        return;
-      }
-
-      sumaTotalColores += cantidadColor;
 
       int sumaMiniSubfilas = 0;
       if (miniSubfilas.isEmpty) {
@@ -240,19 +239,13 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
         });
       }
 
-      if (sumaMiniSubfilas != cantidadColor) {
+      bloqueColor['cantidad_color'] = sumaMiniSubfilas;
+      if (sumaMiniSubfilas <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'La suma de las subfilas de "$colorNombre" ($sumaMiniSubfilas) debe ser igual al total asignado a ese color ($cantidadColor)')));
+            content:
+                Text('El total del color "$colorNombre" debe ser mayor a 0')));
         return;
       }
-    }
-
-    if (sumaTotalColores != _cantidadFila) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'La suma total de todos los colores ($sumaTotalColores) debe ser igual a la cantidad total del inventario ($_cantidadFila)')));
-      return;
     }
 
     _mostrarSplashScreen();
@@ -659,7 +652,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                       .toList(),
                   onChanged: (String? v) {
                     setState(() {
-                      // Asignación explícita para evitar inferencias incorrectas de tipo
                       mini['plataforma'] = v;
                     });
                   },
@@ -674,7 +666,13 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   Widget _buildBloqueColorItem(int colorIndex) {
     final bloque = _subfilasColor[colorIndex];
     final miniSubfilas = (bloque['minisubfilas'] as List<dynamic>?) ?? [];
-    final cantidadColor = (bloque['cantidad_color'] ?? 0) as int;
+
+    // Cálculo automático del total de este bloque de color
+    final int cantidadColor = miniSubfilas.fold<int>(
+      0,
+      (sum, m) => sum + ((m['cantidad'] ?? 0) as int),
+    );
+    bloque['cantidad_color'] = cantidadColor;
 
     return Card(
       elevation: 2,
@@ -704,19 +702,32 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 Expanded(
                   flex: 1,
                   child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Total Color',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    keyboardType: TextInputType.number,
-                    initialValue:
-                        cantidadColor > 0 ? cantidadColor.toString() : '',
-                    onChanged: (v) {
-                      final val = int.tryParse(v) ?? 0;
-                      setState(() => bloque['cantidad_color'] = val);
-                    },
-                  ),
+  key: ValueKey('total_color_${colorIndex}_$cantidadColor'),
+  initialValue: cantidadColor.toString(),
+  readOnly: true,
+  enabled: false,
+  style: TextStyle(
+    color: cantidadColor > 0
+        ? Colors.green.shade900
+        : Colors.black54,
+    fontWeight: FontWeight.bold,
+  ),
+  decoration: InputDecoration(
+    labelText: 'Total Color',
+    border: const OutlineInputBorder(),
+    filled: true,
+    fillColor: cantidadColor > 0
+        ? Colors.green.shade100
+        : Colors.grey.shade200,
+    disabledBorder: OutlineInputBorder(
+      borderSide: BorderSide(
+        color: cantidadColor > 0
+            ? Colors.green.shade400
+            : Colors.grey.shade400,
+      ),
+    ),
+  ),
+),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_forever, color: Colors.red),
@@ -752,43 +763,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 icon: const Icon(Icons.add_circle_outline, size: 18),
                 label: const Text('Agregar subfila'),
                 onPressed: () {
-                  final totalColor = (bloque['cantidad_color'] ?? 0) as int;
-
-                  // 1. Validar que el bloque tenga un 'Total Color' asignado
-                  if (totalColor <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Primero ingresa la cantidad total para este color')),
-                    );
-                    return;
-                  }
-
-                  // 2. Restricción visual: No tener más mini-subfilas que las unidades permitidas por ese color
-                  if (miniSubfilas.length >= totalColor) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'No puede exceder la cantidad total para este color')),
-                    );
-                    return;
-                  }
-
-                  // 3. Restricción visual: Si la suma de las cantidades de las mini-subfilas ya igualó el Total Color
-                  final totalActualMini = miniSubfilas.fold<int>(
-                    0,
-                    (sum, m) => sum + ((m['cantidad'] ?? 0) as int),
-                  );
-
-                  if (totalActualMini >= totalColor) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Las tallas agregadas ya suman el total asignado a este color')),
-                    );
-                    return;
-                  }
-
                   setState(() {
                     miniSubfilas.add(<String, dynamic>{
                       'cantidad': 0,
@@ -893,7 +867,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     final int visibles = subfilasFiltradasIndices.length;
     final int ocultas = totalSubfilas - visibles;
 
-    // 🔹 CAMBIO 1: Invierte la lista de índices para mostrar el último agregado primero (arriba)
     final List<int> indicesOrdenadosVisualmente =
         subfilasFiltradasIndices.reversed.toList();
 
@@ -940,19 +913,31 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                  initialValue: _cantidadFila > 0 ? '$_cantidadFila' : '',
-                  decoration: const InputDecoration(
-                      labelText: 'Cantidad total',
-                      border: OutlineInputBorder()),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => _cantidadFila = int.tryParse(v) ?? 0),
+                key: ValueKey('cant_total_fila_$_cantidadFila'),
+                readOnly: true,
+                enabled: false,
+                initialValue: '$_cantidadFila',
+                style: TextStyle(
+                  color: _cantidadFila > 0
+                      ? Colors.green.shade800
+                      : Colors.black87,
+                  fontWeight:
+                      _cantidadFila > 0 ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Cantidad total',
+                  border: const OutlineInputBorder(),
+                  filled: _cantidadFila > 0,
+                  fillColor: _cantidadFila > 0 ? Colors.green.shade50 : null,
+                ),
+              ),
               const Divider(height: 32),
               const Text('Desglose por Color',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 12),
               _buildSeccionFiltros(visibles, totalSubfilas),
               const SizedBox(height: 12),
-              // 🔹 CAMBIO 2: Asigna una ValueKey a cada bloque basado en el ítem real para evitar reuso incorrecto del estado
               ...indicesPaginados.map((index) => KeyedSubtree(
                     key: ValueKey(_subfilasColor[index]),
                     child: _buildBloqueColorItem(index),
@@ -965,28 +950,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.palette_outlined),
                   onPressed: () {
-                    if (_cantidadFila <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Primero ingresa una cantidad total')));
-                      return;
-                    }
-
-                    // 🔹 REGLA DE LÍMITE: No exceder la cantidad total general de la fila
-                    if (_subfilasColor.length >= _cantidadFila) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('No puede exceder la cantidad total')));
-                      return;
-                    }
-
-                    final sumaTotalesColor = _subfilasColor.fold<int>(0,
-                        (sum, b) => sum + ((b['cantidad_color'] ?? 0) as int));
-
-                    if (sumaTotalesColor >= _cantidadFila) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Ya suman la cantidad total')));
-                      return;
-                    }
-
                     setState(() {
                       _agregarNuevoBloqueColor();
                       _paginaActual = 1;

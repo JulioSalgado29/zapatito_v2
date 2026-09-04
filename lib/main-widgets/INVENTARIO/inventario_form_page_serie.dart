@@ -29,6 +29,9 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   bool _tipoTieneColores = false;
 
   int _cantidadSeriesTotal = 0;
+  // Se inicializa con '0' desde el comienzo
+  final TextEditingController _cantidadTotalController =
+      TextEditingController(text: '0');
 
   final List<Map<String, dynamic>> _subfilas = [];
   final Map<String, String?> _iconCache = {};
@@ -54,7 +57,10 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   /// MAPA DE SERIES
   final Map<String, List<int>> seriesMap = {
     '27-28-29-30-31-32': [27, 28, 29, 30, 31, 32],
+    '30-30-31-31-32-32': [30, 30, 31, 31, 32, 32],
     '33-33-34-34-35-36': [33, 33, 34, 34, 35, 36],
+    '33-34-35-35-36-36': [33, 34, 35, 35, 36, 36],
+    '35-36-36-37-37-38': [35, 36, 36, 37, 37, 38],
     '35-36-37-37-38-39': [35, 36, 37, 37, 38, 39],
     '39-40-40-41-42-43': [39, 40, 40, 41, 42, 43],
   };
@@ -89,6 +95,16 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     return total;
   }
 
+  /// Recalcula la suma total acumulada de series ingresadas en las subfilas
+  void _actualizarTotalSeriesInformativo() {
+    int suma = _subfilas.fold(
+        0, (total, item) => total + ((item['cantidad'] ?? 0) as int));
+    setState(() {
+      _cantidadSeriesTotal = suma;
+      _cantidadTotalController.text = suma.toString();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -105,6 +121,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   @override
   void dispose() {
     _filtroColorController.dispose();
+    _cantidadTotalController.dispose();
     super.dispose();
   }
 
@@ -136,19 +153,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     if (_calzadoId == null || _cantidadSeriesTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Selecciona calzado y cantidad de series')),
-      );
-      return;
-    }
-
-    int totalSeriesIngresadas = _subfilas.fold(
-        0, (suma, item) => suma + (item['cantidad'] ?? 0) as int);
-
-    if (totalSeriesIngresadas != _cantidadSeriesTotal) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-               'La suma de subfilas debe ser igual al total de series')),
+            content: Text('Selecciona calzado y cantidad de series mayor a 0')),
       );
       return;
     }
@@ -212,7 +217,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
         int cantidadSerie = sub['cantidad'];
         int taco = sub['taco'] ?? 0;
 
-        // Aplica la condición antes de armar la clave
         String plataforma =
             _tipoTienePlataforma ? (sub['plataforma'] ?? "0") : "0";
         String color = _tipoTieneColores ? (sub['colores'] ?? "0") : "0";
@@ -260,7 +264,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
 
       if (exito) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Codigo de inventario seriado guardado')),
+          const SnackBar(
+              content: Text('Código de inventario seriado guardado')),
         );
         Navigator.pop(context, true);
       } else {
@@ -284,7 +289,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Barra superior de control
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -358,8 +362,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
             ),
           ],
         ),
-
-        // Campos de filtro desplegables
         if (_mostrarFiltros) ...[
           const SizedBox(height: 8),
           Row(
@@ -426,7 +428,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                     items: [
                       const DropdownMenuItem<String?>(
                           value: null, child: Text('Todas')),
-                      ...opcionesPlataforma.map((p) => DropdownMenuItem<String?>(
+                      ...opcionesPlataforma
+                          .map((p) => DropdownMenuItem<String?>(
                                 value: p,
                                 child: Text(p),
                               )),
@@ -573,14 +576,17 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
           children: [
             Expanded(
               child: TextFormField(
-                key: ValueKey('cantidad_${index}_${_subfilas[index]['id'] ?? ''}'),
+                key: ValueKey(
+                    'cantidad_${index}_${_subfilas[index]['id'] ?? ''}'),
                 decoration: const InputDecoration(
                     labelText: 'Cantidad', border: OutlineInputBorder()),
                 keyboardType: TextInputType.number,
-                initialValue: cantidadActual > 0 ? cantidadActual.toString() : '',
+                initialValue:
+                    cantidadActual > 0 ? cantidadActual.toString() : '',
                 onChanged: (val) {
                   final parsed = int.tryParse(val) ?? 0;
-                  setState(() => _subfilas[index]['cantidad'] = parsed);
+                  _subfilas[index]['cantidad'] = parsed;
+                  _actualizarTotalSeriesInformativo();
                 },
               ),
             ),
@@ -626,6 +632,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                 if (_paginaActual > totalPaginas && totalPaginas > 0) {
                   _paginaActual = totalPaginas;
                 }
+                _actualizarTotalSeriesInformativo();
               }),
             ),
           ],
@@ -772,11 +779,30 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                   : _buildDropdownConIconos(),
               const SizedBox(height: 12),
               TextFormField(
-                decoration: const InputDecoration(
-                    labelText: 'Cantidad total de series',
-                    border: OutlineInputBorder()),
-                keyboardType: TextInputType.number,
-                onChanged: (v) => _cantidadSeriesTotal = int.tryParse(v) ?? 0,
+                controller: _cantidadTotalController,
+                readOnly: true,
+                enabled: false,
+                style: TextStyle(
+                  color: _cantidadSeriesTotal > 0
+                      ? Colors.green.shade900
+                      : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Cantidad total de series',
+                  border: const OutlineInputBorder(),
+                  filled: true,
+                  fillColor: _cantidadSeriesTotal > 0
+                      ? Colors.green.shade100
+                      : Colors.grey.shade200,
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: _cantidadSeriesTotal > 0
+                          ? Colors.green.shade400
+                          : Colors.grey.shade400,
+                    ),
+                  ),
+                ),
               ),
               const Divider(height: 32),
               const Text('Subfilas de inventario',
@@ -793,23 +819,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.add),
                   onPressed: () {
-                    if (_cantidadSeriesTotal <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Primero ingresa una cantidad total')));
-                      return;
-                    }
-                    if (_subfilas.length >= _cantidadSeriesTotal) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('No puede exceder la cantidad total')));
-                      return;
-                    }
-                    final totalActual = _subfilas.fold<int>(0,
-                        (suma, item) => suma + (item['cantidad'] ?? 0) as int);
-                    if (totalActual >= _cantidadSeriesTotal) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Ya suman la cantidad total')));
-                      return;
-                    }
                     setState(() {
                       _subfilas.add({
                         'cantidad': 0,

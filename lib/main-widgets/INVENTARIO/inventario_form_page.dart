@@ -51,7 +51,14 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       _filtroPlataforma != null ||
       _filtroColor.trim().isNotEmpty;
 
-  int _cantidadFila = 0;
+  // Calcula automáticamente la suma total de subfilas
+  int get _cantidadTotalCalculada {
+    return _subfilas.fold<int>(
+      0,
+      (suma, item) => suma + (item['cantidad'] as int? ?? 0),
+    );
+  }
+
   final List<Map<String, dynamic>> _subfilas = [];
   final Map<String, String?> _iconCache = {};
   bool _cargandoDatos = false;
@@ -108,7 +115,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       if (detalle != null) {
         // 1. Asignar datos de la fila y calzado (vienen del INNER JOIN)
         _calzadoId = detalle['id_calzado']?.toString();
-        _cantidadFila = detalle['cantidad'] ?? 0;
         _tipoTieneTaco = detalle['taco'] ?? true;
         _tipoTienePlataforma = detalle['plataforma'] ?? true;
         _tipoTieneColores = detalle['colores'] ?? true;
@@ -194,9 +200,11 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   }
 
   Future<void> _guardarFilaInventario() async {
-    if (_calzadoId == null || _cantidadFila <= 0) {
+    final int cantidadTotal = _cantidadTotalCalculada;
+
+    if (_calzadoId == null || cantidadTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Selecciona un calzado y una cantidad válida')));
+          content: Text('Selecciona un calzado y agrega una cantidad mayor a 0')));
       return;
     }
 
@@ -239,15 +247,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       combinaciones.add(key);
     }
 
-    final totalSubfila = _subfilas.fold<int>(
-        0, (suma, item) => suma + (item['cantidad'] ?? 0) as int);
-    if (totalSubfila != _cantidadFila) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content:
-              Text('La suma de subfilas debe ser igual a la cantidad total')));
-      return;
-    }
-
     _mostrarSplashScreen();
     try {
       final List<Map<String, dynamic>> subfilasMapeadas = _subfilas.map((sub) {
@@ -266,7 +265,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
         final datos = {
           'id_inventario': widget.inventarioId,
           'id_calzado': _calzadoId,
-          'cantidad': _cantidadFila,
+          'cantidad': cantidadTotal,
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_user': widget.emailUser ?? 'anon',
           'subfilas': subfilasMapeadas,
@@ -276,7 +275,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       } else {
         final datos = {
           'id_calzado': _calzadoId,
-          'cantidad': _cantidadFila,
+          'cantidad': cantidadTotal,
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_user': widget.emailUser ?? 'anon@mail.com',
           'subfilas': subfilasMapeadas,
@@ -328,7 +327,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
             ),
             Row(
               children: [
-                // 🔴 Botón de limpiar filtros (visible solo si hay filtros aplicados)
                 if (_estaFiltrado) ...[
                   TextButton.icon(
                     onPressed: _limpiarFiltros,
@@ -346,8 +344,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                   ),
                   const SizedBox(width: 8),
                 ],
-
-                // 🔴 Indicador de estado que cambia a ROJO si está filtrado
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -390,8 +386,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
             ),
           ],
         ),
-
-        // Campos de filtro desplegables
         if (_mostrarFiltros) ...[
           const SizedBox(height: 8),
           Row(
@@ -777,19 +771,19 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     final int visibles = subfilasFiltradasIndices.length;
     final int ocultas = totalSubfilas - visibles;
 
-    // 1. Invertimos la lista filtrada completa: El elemento más nuevo queda en la posición 0
-    final List<int> indicesInvertidos = subfilasFiltradasIndices.reversed.toList();
+    final List<int> indicesInvertidos =
+        subfilasFiltradasIndices.reversed.toList();
 
-    // 2. Calculamos los rangos según la página activa
     final int inicio = (_paginaActual - 1) * _itemsPorPagina;
     final int fin = (inicio + _itemsPorPagina < indicesInvertidos.length)
         ? inicio + _itemsPorPagina
         : indicesInvertidos.length;
 
-    // 3. Extraemos el bloque correspondientes a la página activa
     final List<int> indicesPaginados = (inicio < indicesInvertidos.length)
         ? indicesInvertidos.sublist(inicio, fin)
         : [];
+
+    final totalSeriesCalculado = _cantidadTotalCalculada;
 
     return Scaffold(
       appBar: Designwidgets().appBarMain(
@@ -826,13 +820,36 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 },
               ),
               const SizedBox(height: 12),
+
+              // 🔹 CAMPO DE CANTIDAD TOTAL (Informativo y con estilo dinamico)
               TextFormField(
-                  initialValue: _cantidadFila > 0 ? '$_cantidadFila' : '',
-                  decoration: const InputDecoration(
-                      labelText: 'Cantidad total',
-                      border: OutlineInputBorder()),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) => _cantidadFila = int.tryParse(v) ?? 0),
+                key: ValueKey('cantidad_total_$totalSeriesCalculado'),
+                initialValue: totalSeriesCalculado.toString(),
+                readOnly: true,
+                enabled: false,
+                style: TextStyle(
+                  color: totalSeriesCalculado > 0
+                      ? Colors.green.shade900
+                      : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Cantidad total de series',
+                  border: const OutlineInputBorder(),
+                  filled: true,
+                  fillColor: totalSeriesCalculado > 0
+                      ? Colors.green.shade100
+                      : Colors.grey.shade200,
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: totalSeriesCalculado > 0
+                          ? Colors.green.shade400
+                          : Colors.grey.shade400,
+                    ),
+                  ),
+                ),
+              ),
+
               const Divider(height: 32),
               const Text('Subfilas de inventario',
                   style: TextStyle(fontWeight: FontWeight.bold)),
@@ -848,23 +865,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.add),
                   onPressed: () {
-                    if (_cantidadFila <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Primero ingresa una cantidad total')));
-                      return;
-                    }
-                    if (_subfilas.length >= _cantidadFila) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('No puede exceder la cantidad total')));
-                      return;
-                    }
-                    final totalActual = _subfilas.fold<int>(0,
-                        (suma, item) => suma + (item['cantidad'] ?? 0) as int);
-                    if (totalActual >= _cantidadFila) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Ya suman la cantidad total')));
-                      return;
-                    }
                     setState(() {
                       _subfilas.add({
                         'cantidad': 0,
@@ -883,12 +883,13 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                    onPressed: _guardarFilaInventario,
-                    icon: Icon(
-                        widget.filaId != null ? Icons.save_as : Icons.save),
-                    label: Text(widget.filaId == null
-                        ? 'Guardar inventario'
-                        : 'Actualizar inventario')),
+                  onPressed: _guardarFilaInventario,
+                  icon: Icon(
+                      widget.filaId != null ? Icons.save_as : Icons.save),
+                  label: Text(widget.filaId == null
+                      ? 'Guardar inventario'
+                      : 'Actualizar inventario'),
+                ),
               ),
               const SizedBox(height: 20),
             ],

@@ -59,7 +59,6 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "lib/assets/ic_launcher.png"
-  image_path_ios: "lib/assets/ic_launcher_ios.png"
 
 dev_dependencies:
   flutter_test:
