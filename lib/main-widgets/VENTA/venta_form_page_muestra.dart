@@ -171,12 +171,11 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
         final ventaData = {
           'id_inventario': widget.inventarioId,
           'id_dueno_muestra': item.duenoMuestraId,
-          'id_calzado': item.calzadoId,
+          'id_calzado': 152,
           'talla': item.tallaSeleccionada,
-          'taco': item.tipoTieneTaco ? item.tacoSeleccionado ?? 0 : 0,
-          'colores': item.tipoTieneColores ? item.colorSeleccionado ?? '' : '',
-          'plataforma':
-              item.tipoTienePlataforma ? item.plataformaSeleccionada ?? '' : '',
+          'taco': 0,
+          'colores': "0",
+          'plataforma': "0",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
