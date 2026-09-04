@@ -150,10 +150,19 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   }
 
   Future<void> _guardarInventarioSerie() async {
-    if (_calzadoId == null || _cantidadSeriesTotal <= 0) {
+    // 1. Validar selección de calzado
+    if (_calzadoId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecciona un calzado')),
+      );
+      return;
+    }
+
+// 2. Validar cantidad de series
+    if (_cantidadSeriesTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Selecciona calzado y cantidad de series mayor a 0')),
+            content: Text('Ingresa una cantidad de series mayor a 0')),
       );
       return;
     }
@@ -779,7 +788,10 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                   : _buildDropdownConIconos(),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _cantidadTotalController,
+                // Multiplicamos la cantidad de series por 6
+                controller: TextEditingController(
+                  text: (_cantidadSeriesTotal * 6).toString(),
+                ),
                 readOnly: true,
                 enabled: false,
                 style: TextStyle(
@@ -789,7 +801,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Cantidad total de series',
+                  labelText:
+                      'Cantidad total de pares (6 por serie)', // O la etiqueta que prefieras
                   border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: _cantidadSeriesTotal > 0

@@ -202,9 +202,19 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   Future<void> _guardarFilaInventario() async {
     final int cantidadTotal = _cantidadTotalCalculada;
 
-    if (_calzadoId == null || cantidadTotal <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Selecciona un calzado y agrega una cantidad mayor a 0')));
+    // 1. Validar si se seleccionó un calzado
+    if (_calzadoId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecciona un calzado')),
+      );
+      return;
+    }
+
+// 2. Validar la cantidad total
+    if (cantidadTotal <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agrega una cantidad mayor a 0')),
+      );
       return;
     }
 
@@ -834,7 +844,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Cantidad total de series',
+                  labelText: 'Cantidad total de pares',
                   border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: totalSeriesCalculado > 0
@@ -884,8 +894,8 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: _guardarFilaInventario,
-                  icon: Icon(
-                      widget.filaId != null ? Icons.save_as : Icons.save),
+                  icon:
+                      Icon(widget.filaId != null ? Icons.save_as : Icons.save),
                   label: Text(widget.filaId == null
                       ? 'Guardar inventario'
                       : 'Actualizar inventario'),

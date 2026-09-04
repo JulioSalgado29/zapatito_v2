@@ -154,10 +154,20 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   }
 
   Future<void> _guardarFilaInventario() async {
-    if (_calzadoId == null || _cantidadFila <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content:
-              Text('Selecciona un calzado y registra al menos una cantidad')));
+    // 1. Validar selección de calzado
+    if (_calzadoId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecciona un calzado')),
+      );
+      return;
+    }
+
+// 2. Validar cantidad ingresada
+    if (_cantidadFila <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Ingresa al menos una cantidad mayor a 0')),
+      );
       return;
     }
 
@@ -702,32 +712,32 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 Expanded(
                   flex: 1,
                   child: TextFormField(
-  key: ValueKey('total_color_${colorIndex}_$cantidadColor'),
-  initialValue: cantidadColor.toString(),
-  readOnly: true,
-  enabled: false,
-  style: TextStyle(
-    color: cantidadColor > 0
-        ? Colors.green.shade900
-        : Colors.black54,
-    fontWeight: FontWeight.bold,
-  ),
-  decoration: InputDecoration(
-    labelText: 'Total Color',
-    border: const OutlineInputBorder(),
-    filled: true,
-    fillColor: cantidadColor > 0
-        ? Colors.green.shade100
-        : Colors.grey.shade200,
-    disabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(
-        color: cantidadColor > 0
-            ? Colors.green.shade400
-            : Colors.grey.shade400,
-      ),
-    ),
-  ),
-),
+                    key: ValueKey('total_color_${colorIndex}_$cantidadColor'),
+                    initialValue: cantidadColor.toString(),
+                    readOnly: true,
+                    enabled: false,
+                    style: TextStyle(
+                      color: cantidadColor > 0
+                          ? Colors.green.shade900
+                          : Colors.black54,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Total Color',
+                      border: const OutlineInputBorder(),
+                      filled: true,
+                      fillColor: cantidadColor > 0
+                          ? Colors.green.shade100
+                          : Colors.grey.shade200,
+                      disabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: cantidadColor > 0
+                              ? Colors.green.shade400
+                              : Colors.grey.shade400,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_forever, color: Colors.red),
@@ -926,7 +936,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                   fontSize: 16,
                 ),
                 decoration: InputDecoration(
-                  labelText: 'Cantidad total',
+                  labelText: 'Cantidad total de pares',
                   border: const OutlineInputBorder(),
                   filled: _cantidadFila > 0,
                   fillColor: _cantidadFila > 0 ? Colors.green.shade50 : null,
