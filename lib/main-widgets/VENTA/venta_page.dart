@@ -505,6 +505,21 @@ class _VentaPageState extends State<VentaPage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.person, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Vendedor: ${filaData['usuario_creacion'] ?? 'Desconocido'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 10),
                 Container(
                   padding:
@@ -531,18 +546,10 @@ class _VentaPageState extends State<VentaPage> {
             ),
             children: [
               const Divider(),
-              _buildDetalleRow(Icons.shopping_bag, 'Cantidad Vendida',
-                  filaData['cantidad'].toString()),
-              _buildDetalleRow(Icons.straighten, 'Talla Seleccionada',
-                  filaData['talla'].toString()),
-              _buildDetalleRow(Icons.monetization_on, 'Precio de Venta',
-                  'S/ ${precioTotal.toStringAsFixed(2)}'),
               _buildDetalleRow(Icons.payments, 'Método de Pago',
                   filaData['metodo_pago'] ?? 'N/A'),
               _buildDetalleRow(Icons.storefront, 'Lugar de Venta',
                   filaData['lugar_venta'] ?? 'N/A'),
-              _buildDetalleRow(Icons.person, 'Vendedor',
-                  filaData['usuario_creacion'] ?? 'Desconocido'),
               if (esVentaDeHoy)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
