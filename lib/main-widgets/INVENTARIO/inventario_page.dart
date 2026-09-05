@@ -13,12 +13,14 @@ class InventarioPage extends StatefulWidget {
   final String? firstName;
   final String? emailUser;
   final String? inventarioId;
+  final bool? isVendedor;
 
   const InventarioPage({
     super.key,
     this.firstName,
     this.emailUser,
     this.inventarioId,
+    this.isVendedor,
   });
 
   @override
@@ -354,7 +356,6 @@ class _InventarioPageState extends State<InventarioPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Si no hay ID o aún está cargando la API inicial, muestra SplashScreen
     if (widget.inventarioId == null || _cargando) {
       return const SplashScreen02();
     }
@@ -435,6 +436,7 @@ class _InventarioPageState extends State<InventarioPage> {
                           return _FilaInventarioItem(
                             key: ValueKey(filaId),
                             fila: fila,
+                            isVendedor: widget.isVendedor, // 👈 Pasamos el parámetro aquí
                             onEliminar: (id) =>
                                 _confirmarEliminacion(context, id),
                             onEditar: (id) => _abrirFormulario(filaId: id),
@@ -524,6 +526,7 @@ Widget _buildFab(
 
 class _FilaInventarioItem extends StatelessWidget {
   final Map<String, dynamic> fila;
+  final bool? isVendedor; // 👈 Recibe la variable
   final Function(String) onEliminar;
   final Function(String) onEditar;
   final Widget Function(String?) buildIcon;
@@ -533,6 +536,7 @@ class _FilaInventarioItem extends StatelessWidget {
   const _FilaInventarioItem({
     super.key,
     required this.fila,
+    this.isVendedor, // 👈 Se añade al constructor
     required this.onEliminar,
     required this.onEditar,
     required this.buildIcon,
@@ -573,19 +577,21 @@ class _FilaInventarioItem extends StatelessWidget {
           ],
         ),
         subtitle: Text('Cantidad total: $cantidad'),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'editar') {
-              onEditar(filaId);
-            } else if (value == 'eliminar') {
-              onEliminar(filaId);
-            }
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 'editar', child: Text('Editar')),
-            PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-          ],
-        ),
+        trailing: isVendedor != true // 👈 Si NO es vendedor (o si es null/falso), muestra los botones de editar/eliminar
+            ? PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'editar') {
+                    onEditar(filaId);
+                  } else if (value == 'eliminar') {
+                    onEliminar(filaId);
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: 'editar', child: Text('Editar')),
+                  PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                ],
+              )
+            : null,
         children: subfilas.isEmpty
             ? const [
                 Padding(
