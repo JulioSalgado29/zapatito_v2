@@ -714,7 +714,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
-            if (_todosLosCalzados.length >= 16) {
+            if (_todosLosCalzados.length >= 80) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   backgroundColor: Color(0xFFD32F2F), // Rojo elegante
