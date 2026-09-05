@@ -422,293 +422,330 @@ class _CalzadoPageState extends State<CalzadoPage> {
     }).toList();
 
     return Scaffold(
-      appBar: _buildAppBar(calzadosFiltrados),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Campo de texto para la búsqueda
-            TextField(
-              controller: _searchController,
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Buscar por nombre de calzado...',
-                prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: Colors.blueAccent, width: 2),
+        appBar: _buildAppBar(calzadosFiltrados),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Campo de texto para la búsqueda
+              TextField(
+                controller: _searchController,
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre de calzado...',
+                  prefixIcon:
+                      const Icon(Icons.search, color: Colors.blueAccent),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: Colors.blueAccent, width: 2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Renderizado de la lista filtrada
-            Expanded(
-              child: _cargando
-                  ? const Center(child: CircularProgressIndicator())
-                  : calzadosFiltrados.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchQuery.isEmpty
-                                ? 'No hay códigos aún'
-                                : 'No se encontraron calzados con "$_searchQuery"',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _cargarCalzados,
-                          child: ListView.builder(
-                            itemCount: calzadosFiltrados.length,
-                            itemBuilder: (context, index) {
-                              final data = calzadosFiltrados[index];
-                              final idCalzado =
-                                  data['id_calzado']?.toString() ?? '';
-                              final nombre = data['nombre'] ?? '';
-                              final precio = double.tryParse(
-                                      data['precio_real']?.toString() ?? '0') ??
-                                  0.0;
-                              final usuario = data['usuario_creacion'] ?? '';
-                              final tipoId =
-                                  data['id_tipo_calzado']?.toString();
-                              final taco = data['taco'] ?? false;
-                              final plataforma = data['plataforma'] ?? false;
-                              final colores = data['colores'] ?? false;
+              // Renderizado de la lista filtrada
+              Expanded(
+                child: _cargando
+                    ? const Center(child: CircularProgressIndicator())
+                    : calzadosFiltrados.isEmpty
+                        ? Center(
+                            child: Text(
+                              _searchQuery.isEmpty
+                                  ? 'No hay códigos aún'
+                                  : 'No se encontraron calzados con "$_searchQuery"',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _cargarCalzados,
+                            child: ListView.builder(
+                              itemCount: calzadosFiltrados.length,
+                              itemBuilder: (context, index) {
+                                final data = calzadosFiltrados[index];
+                                final idCalzado =
+                                    data['id_calzado']?.toString() ?? '';
+                                final nombre = data['nombre'] ?? '';
+                                final precio = double.tryParse(
+                                        data['precio_real']?.toString() ??
+                                            '0') ??
+                                    0.0;
+                                final usuario = data['usuario_creacion'] ?? '';
+                                final tipoId =
+                                    data['id_tipo_calzado']?.toString();
+                                final taco = data['taco'] ?? false;
+                                final plataforma = data['plataforma'] ?? false;
+                                final colores = data['colores'] ?? false;
 
-                              final icono = _mapaIconos[tipoId] ?? "❓";
-                              final bool mostrarAvisoPrecio =
-                                  (precio <= 0 && widget.isAlmacenero == false);
+                                final icono = _mapaIconos[tipoId] ?? "❓";
+                                final bool mostrarAvisoPrecio = (precio <= 0 &&
+                                    widget.isAlmacenero == false);
 
-                              final bool estaSeleccionado =
-                                  _seleccionadosIds.contains(idCalzado);
+                                final bool estaSeleccionado =
+                                    _seleccionadosIds.contains(idCalzado);
 
-                              return Card(
-                                elevation: estaSeleccionado ? 6 : 3,
-                                margin: const EdgeInsets.symmetric(vertical: 8),
-                                color: estaSeleccionado
-                                    ? Colors.blue.shade50
-                                    : Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: estaSeleccionado
-                                      ? const BorderSide(
-                                          color: Colors.blueAccent, width: 2)
-                                      : BorderSide.none,
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onLongPress: () =>
-                                      _toggleSeleccion(idCalzado),
-                                  onTap: () {
-                                    if (_estaEnModoSeleccion) {
-                                      _toggleSeleccion(idCalzado);
-                                    }
-                                  },
-                                  child: Column(
-                                    children: [
-                                      if (mostrarAvisoPrecio)
-                                        Container(
-                                          width: double.infinity,
+                                return Card(
+                                  elevation: estaSeleccionado ? 6 : 3,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  color: estaSeleccionado
+                                      ? Colors.blue.shade50
+                                      : Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: estaSeleccionado
+                                        ? const BorderSide(
+                                            color: Colors.blueAccent, width: 2)
+                                        : BorderSide.none,
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onLongPress: () =>
+                                        _toggleSeleccion(idCalzado),
+                                    onTap: () {
+                                      if (_estaEnModoSeleccion) {
+                                        _toggleSeleccion(idCalzado);
+                                      }
+                                    },
+                                    child: Column(
+                                      children: [
+                                        if (mostrarAvisoPrecio)
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 4),
+                                            color: Colors.red.shade100,
+                                            child: const Text(
+                                              "⚠️ Falta ingresar el precio",
+                                              style: TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        Padding(
                                           padding: const EdgeInsets.symmetric(
-                                              vertical: 4),
-                                          color: Colors.red.shade100,
-                                          child: const Text(
-                                            "⚠️ Falta ingresar el precio",
-                                            style: TextStyle(
-                                                color: Colors.red,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 8),
-                                        child: ListTile(
-                                          leading: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (_estaEnModoSeleccion)
-                                                Checkbox(
-                                                  value: estaSeleccionado,
-                                                  activeColor:
-                                                      Colors.blueAccent,
-                                                  onChanged: (_) =>
-                                                      _toggleSeleccion(
-                                                          idCalzado),
+                                              vertical: 8),
+                                          child: ListTile(
+                                            leading: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (_estaEnModoSeleccion)
+                                                  Checkbox(
+                                                    value: estaSeleccionado,
+                                                    activeColor:
+                                                        Colors.blueAccent,
+                                                    onChanged: (_) =>
+                                                        _toggleSeleccion(
+                                                            idCalzado),
+                                                  ),
+                                                (icono
+                                                            .toString()
+                                                            .endsWith('.png') ||
+                                                        icono
+                                                            .toString()
+                                                            .endsWith('.jpg'))
+                                                    ? Image.asset(icono,
+                                                        width: 40,
+                                                        height: 40,
+                                                        fit: BoxFit.contain)
+                                                    : Text(icono,
+                                                        style: const TextStyle(
+                                                            fontSize: 30)),
+                                              ],
+                                            ),
+                                            title: Text(nombre,
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 18)),
+                                            subtitle: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const SizedBox(height: 10),
+                                                Wrap(
+                                                  spacing: 12,
+                                                  runSpacing: 8,
+                                                  children: [
+                                                    _buildFeatureChip(
+                                                        Icons.height,
+                                                        'Taco',
+                                                        taco),
+                                                    _buildFeatureChip(
+                                                        Icons.layers,
+                                                        'Plataforma',
+                                                        plataforma),
+                                                    _buildFeatureChip(
+                                                        Icons.palette,
+                                                        'Colores',
+                                                        colores),
+                                                  ],
                                                 ),
-                                              (icono
-                                                          .toString()
-                                                          .endsWith('.png') ||
-                                                      icono
-                                                          .toString()
-                                                          .endsWith('.jpg'))
-                                                  ? Image.asset(icono,
-                                                      width: 40,
-                                                      height: 40,
-                                                      fit: BoxFit.contain)
-                                                  : Text(icono,
-                                                      style: const TextStyle(
-                                                          fontSize: 30)),
-                                            ],
-                                          ),
-                                          title: Text(nombre,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 18)),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              const SizedBox(height: 10),
-                                              Wrap(
-                                                spacing: 12,
-                                                runSpacing: 8,
-                                                children: [
-                                                  _buildFeatureChip(
-                                                      Icons.height,
-                                                      'Taco',
-                                                      taco),
-                                                  _buildFeatureChip(
-                                                      Icons.layers,
-                                                      'Plataforma',
-                                                      plataforma),
-                                                  _buildFeatureChip(
-                                                      Icons.palette,
-                                                      'Colores',
-                                                      colores),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Row(
-                                                children: [
-                                                  Icon(Icons.account_circle,
-                                                      size: 14,
-                                                      color: Colors.grey[400]),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text.rich(
-                                                      TextSpan(
-                                                        children: [
-                                                          if (widget
-                                                                  .isAlmacenero !=
-                                                              true) ...[
-                                                            TextSpan(
-                                                              text:
-                                                                  'S/ ${precio.toStringAsFixed(2)}',
-                                                              style: TextStyle(
-                                                                fontSize: 13,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                color: Colors
-                                                                    .blue
-                                                                    .shade800,
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.account_circle,
+                                                        size: 14,
+                                                        color:
+                                                            Colors.grey[400]),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text.rich(
+                                                        TextSpan(
+                                                          children: [
+                                                            if (widget
+                                                                    .isAlmacenero !=
+                                                                true) ...[
+                                                              TextSpan(
+                                                                text:
+                                                                    'S/ ${precio.toStringAsFixed(2)}',
+                                                                style:
+                                                                    TextStyle(
+                                                                  fontSize: 13,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Colors
+                                                                      .blue
+                                                                      .shade800,
+                                                                ),
                                                               ),
-                                                            ),
-                                                            const TextSpan(
-                                                              text: '  |  ',
+                                                              const TextSpan(
+                                                                text: '  |  ',
+                                                                style: TextStyle(
+                                                                    fontSize:
+                                                                        11,
+                                                                    color: Colors
+                                                                        .grey),
+                                                              ),
+                                                            ],
+                                                            TextSpan(
+                                                              text: widget.isAlmacenero ==
+                                                                      true
+                                                                  ? 'Creado por: $usuario'
+                                                                  : usuario,
                                                               style: TextStyle(
                                                                   fontSize: 11,
                                                                   color: Colors
-                                                                      .grey),
+                                                                          .grey[
+                                                                      500]),
                                                             ),
                                                           ],
-                                                          TextSpan(
-                                                            text: widget.isAlmacenero ==
-                                                                    true
-                                                                ? 'Creado por: $usuario'
-                                                                : usuario,
-                                                            style: TextStyle(
-                                                                fontSize: 11,
-                                                                color: Colors
-                                                                    .grey[500]),
-                                                          ),
-                                                        ],
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
                                                       ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          trailing: _estaEnModoSeleccion
-                                              ? null
-                                              : Wrap(
-                                                  direction: Axis.vertical,
-                                                  alignment:
-                                                      WrapAlignment.center,
-                                                  children: [
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                          Icons.edit,
-                                                          color:
-                                                              Colors.blueAccent,
-                                                          size: 22),
-                                                      onPressed: () =>
-                                                          _navegarFormulario(
-                                                              calzado: data),
-                                                    ),
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                          Icons.delete_forever,
-                                                          color:
-                                                              Colors.redAccent,
-                                                          size: 22),
-                                                      onPressed: () =>
-                                                          _confirmarEliminacion(
-                                                              context,
-                                                              idCalzado),
                                                     ),
                                                   ],
                                                 ),
+                                              ],
+                                            ),
+                                            trailing: _estaEnModoSeleccion
+                                                ? null
+                                                : Wrap(
+                                                    direction: Axis.vertical,
+                                                    alignment:
+                                                        WrapAlignment.center,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.edit,
+                                                            color: Colors
+                                                                .blueAccent,
+                                                            size: 22),
+                                                        onPressed: () =>
+                                                            _navegarFormulario(
+                                                                calzado: data),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons
+                                                                .delete_forever,
+                                                            color: Colors
+                                                                .redAccent,
+                                                            size: 22),
+                                                        onPressed: () =>
+                                                            _confirmarEliminacion(
+                                                                context,
+                                                                idCalzado),
+                                                      ),
+                                                    ],
+                                                  ),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            if (_todosLosCalzados.length >= 16) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Color(0xFFD32F2F), // Rojo elegante
+                  duration: Duration(seconds: 3),
+                  content: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Límite alcanzado (máx. 16 calzados por inventario). Elimina uno para agregar otro.',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navegarFormulario(),
-        backgroundColor: const Color.fromARGB(255, 33, 47, 243),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              return;
+            }
+            _navegarFormulario();
+          },
+          backgroundColor: const Color.fromARGB(255, 33, 47, 243),
+          child: const Icon(Icons.add, color: Colors.white),
+        ));
   }
 }
