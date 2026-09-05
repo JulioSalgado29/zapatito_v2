@@ -9,9 +9,11 @@ class CalzadoService {
   // 1. Obtener la Presigned URL desde el backend en Node.js
   static Future<Map<String, String>?> obtenerPresignedUrl({
   required String? idInventario,
+  String nombre = '',
   required String extension,
 }) async {
   try {
+    print('Solicitando presigned URL para idInventario: $idInventario, nombre: $nombre, extension: $extension');
     final url = Uri.parse('${ApiService.baseUrl}/api/calzado/presigned-url');
     
     final response = await http.post(
@@ -19,6 +21,7 @@ class CalzadoService {
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
         'id_inventario': idInventario,
+        'nombre': nombre,
         'extension': extension,
       }),
     );
@@ -203,6 +206,7 @@ class CalzadoService {
     required String? usuarioCreacion,
     required String? emailUsuario,
     required dynamic idInventario,
+    required List<String>? imagenes,
   }) async {
     try {
       final url = Uri.parse('${ApiService.baseUrl}/api/calzado');
@@ -218,6 +222,7 @@ class CalzadoService {
         'usuario_creacion': usuarioCreacion,
         'email_usuario': emailUsuario,
         'id_inventario': idInventario,
+        'imagenes': imagenes,
       });
 
       final response = await http.post(
@@ -246,6 +251,8 @@ class CalzadoService {
     required dynamic idTipoCalzado,
     required String? usuarioCreacion,
     required String? emailUsuario,
+    required List<String>? imagenes,
+    
   }) async {
     try {
       final url = Uri.parse(
@@ -262,6 +269,7 @@ class CalzadoService {
         'id_tipo_calzado': idTipoCalzado,
         'usuario_creacion': usuarioCreacion,
         'email_usuario': emailUsuario,
+        'imagenes': imagenes,
       });
 
       final response = await http.put(

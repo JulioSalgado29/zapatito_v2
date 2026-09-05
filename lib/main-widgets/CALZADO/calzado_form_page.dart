@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -56,22 +57,47 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     if (isEditing) {
       final data = widget.calzado!;
+
+      // Limpiar la lista para asegurar un estado inicial limpio
+      _imageUrlsRemotas.clear();
+
       _nombreController.text = data['nombre'] ?? '';
-      final double precio = double.tryParse(data['precio_real']?.toString() ?? '0') ?? 0.0;
+      final double precio =
+          double.tryParse(data['precio_real']?.toString() ?? '0') ?? 0.0;
       _precioController.text = precio.toStringAsFixed(2);
-      _selectedTipoCalzadoId = (data['id_tipo_calzado'] ?? data['tipo_calzado_id'])?.toString();
+      _selectedTipoCalzadoId =
+          (data['id_tipo_calzado'] ?? data['tipo_calzado_id'])?.toString();
       _tacoCheckbox = data['taco'] ?? false;
       _plataformaCheckbox = data['plataforma'] ?? false;
       _coloresCheckbox = data['colores'] ?? false;
       _iconoSeleccionado = data['icono'] ?? '';
 
-      // Si el backend envia una lista de imagenes o una sola URL
-      if (data['imagenes'] is List) {
-        _imageUrlsRemotas.addAll(List<String>.from(data['imagenes']));
-      } else if (data['imagen_url'] != null) {
-        _imageUrlsRemotas.add(data['imagen_url']);
-      } else if (data['imagen'] != null) {
-        _imageUrlsRemotas.add(data['imagen']);
+      // --- CARGA Y PARSEO ÚNICO Y SEGURO DE IMÁGENES REMOTAS ---
+      final rawImagenes =
+          data['imagenes'] ?? data['imagen_url'] ?? data['imagen'];
+
+      if (rawImagenes != null) {
+        if (rawImagenes is List) {
+          final urlsUnicas = rawImagenes
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+
+          _imageUrlsRemotas.addAll(urlsUnicas);
+        } else if (rawImagenes is String &&
+            rawImagenes.trim().startsWith('[')) {
+          try {
+            final List<dynamic> parsed = jsonDecode(rawImagenes);
+            final urlsUnicas = parsed
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toSet();
+
+            _imageUrlsRemotas.addAll(urlsUnicas);
+          } catch (_) {}
+        } else if (rawImagenes is String && rawImagenes.trim().isNotEmpty) {
+          _imageUrlsRemotas.add(rawImagenes.trim());
+        }
       }
     }
 
@@ -81,7 +107,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _validarFormulario();
       if (isEditing && _selectedTipoCalzadoId != null) {
-        final tipoMap = await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
+        final tipoMap =
+            await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
 
         if (tipoMap != null) {
           final data = tipoMap;
@@ -97,10 +124,13 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
   // Seleccionar multiples imagenes de la galeria (Limite: 25)
   Future<void> _seleccionarImagenes() async {
-    final int imagenesActuales = _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
+    final int imagenesActuales =
+        _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
     if (imagenesActuales >= 25) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ya se ha alcanzado el limite maximo de 25 imagenes.')),
+        const SnackBar(
+            content:
+                Text('Ya se ha alcanzado el limite maximo de 25 imagenes.')),
       );
       return;
     }
@@ -112,13 +142,15 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     if (imagenes.isNotEmpty) {
       final int espacioDisponible = 25 - imagenesActuales;
-      final imagenesNuevas = imagenes.take(espacioDisponible).map((x) => File(x.path)).toList();
+      final imagenesNuevas =
+          imagenes.take(espacioDisponible).map((x) => File(x.path)).toList();
 
       if (imagenes.length > espacioDisponible) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Solo se agregaron $espacioDisponible imagenes para no superar el limite de 25.'),
+              content: Text(
+                  'Solo se agregaron $espacioDisponible imagenes para no superar el limite de 25.'),
             ),
           );
         }
@@ -191,7 +223,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     _mostrarSplashScreen();
 
-    final tipoMap = await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
+    final tipoMap =
+        await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
     final tipoData = tipoMap ?? {};
     final icono = tipoData['icono'] ?? _iconoSeleccionado ?? '';
 
@@ -211,28 +244,27 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       // Subida de cada imagen seleccionada localmente a S3 mediante Presigned URLs
       for (final imagenFile in _imagenesSeleccionadas) {
         final ext = imagenFile.path.split('.').last;
-        print("¿Éxito en S3?: aca");
-        final presignedData = await CalzadoService.obtenerPresignedUrl(idInventario: widget.inventarioId, extension: ext);
-        print(presignedData);
+        final presignedData = await CalzadoService.obtenerPresignedUrl(
+            idInventario: widget.inventarioId, nombre: nombre, extension: ext);
         if (presignedData != null && presignedData.containsKey('uploadUrl')) {
-          print("Subiendo a: ${presignedData['uploadUrl']}");
           final bool exitoSubida = await CalzadoService.subirImagenAS3(
             uploadUrl: presignedData['uploadUrl']!,
             file: imagenFile,
           );
-          print("¿Éxito en S3?: $exitoSubida");
-
           if (exitoSubida) {
             urlsFinales.add(presignedData['fileUrl']!);
           }
         }
       }
 
-      print('sd');
+      // Filtrar explícitamente duplicados antes de enviar la lista final al backend
+      final List<String> urlsLimpias = urlsFinales.toSet().toList();
+
       // Guardar registro en la Base de Datos con las URLs generadas
       final bool exito = isEditing
           ? await CalzadoService.actualizar(
-              id: (widget.calzado!['id_calzado'] ?? widget.calzado!['id']).toString(),
+              id: (widget.calzado!['id_calzado'] ?? widget.calzado!['id'])
+                  .toString(),
               nombre: nombre,
               icono: icono,
               precioReal: precioReal,
@@ -242,6 +274,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
               idTipoCalzado: _selectedTipoCalzadoId,
               usuarioCreacion: widget.firstName,
               emailUsuario: widget.emailUser,
+              imagenes: urlsLimpias,
             )
           : await CalzadoService.crear(
               nombre: nombre,
@@ -254,6 +287,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
               usuarioCreacion: widget.firstName,
               emailUsuario: widget.emailUser,
               idInventario: widget.inventarioId,
+              imagenes: urlsLimpias,
             );
 
       _ocultarSplashScreen();
@@ -298,14 +332,16 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final int totalImagenes = _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
+    final int totalImagenes =
+        _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
 
     return Scaffold(
       appBar: Designwidgets().appBarMain(
         isEditing ? "Editar Codigo" : "Agregar Codigo",
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20).copyWith(top: 24, bottom: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 20)
+            .copyWith(top: 24, bottom: 40),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Form(
@@ -353,16 +389,19 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300, width: 2),
+                              border: Border.all(
+                                  color: Colors.grey.shade300, width: 2),
                             ),
                             child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 28),
+                                Icon(Icons.add_a_photo_outlined,
+                                    color: Colors.grey, size: 28),
                                 SizedBox(height: 4),
                                 Text(
                                   'Subir',
-                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -381,7 +420,9 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade300),
                                 image: DecorationImage(
-                                  image: NetworkImage(_imageUrlsRemotas[index]),
+                                  image: NetworkImage(
+                                    Uri.encodeFull(_imageUrlsRemotas[index]),
+                                  ),
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -397,7 +438,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                     color: Colors.red,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 14),
                                 ),
                               ),
                             ),
@@ -417,7 +459,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade300),
                                 image: DecorationImage(
-                                  image: FileImage(_imagenesSeleccionadas[index]),
+                                  image:
+                                      FileImage(_imagenesSeleccionadas[index]),
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -433,7 +476,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                     color: Colors.red,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                  child: const Icon(Icons.close,
+                                      color: Colors.white, size: 14),
                                 ),
                               ),
                             ),
@@ -473,7 +517,9 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                             Text(
                               'No hay tipos de calzado disponibles.',
                               style: TextStyle(
-                                color: mostrarAdvertencia ? Colors.red : Colors.black87,
+                                color: mostrarAdvertencia
+                                    ? Colors.red
+                                    : Colors.black87,
                                 fontSize: 16,
                                 fontWeight: mostrarAdvertencia
                                     ? FontWeight.bold
@@ -497,9 +543,12 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                     }
 
                     final tipos = snapshot.data!;
-                    final idSeleccionadoStr = _selectedTipoCalzadoId?.toString();
+                    final idSeleccionadoStr =
+                        _selectedTipoCalzadoId?.toString();
                     final existeEnLista = tipos.any(
-                      (data) => data['id_tipo_calzado']?.toString() == idSeleccionadoStr,
+                      (data) =>
+                          data['id_tipo_calzado']?.toString() ==
+                          idSeleccionadoStr,
                     );
 
                     return IgnorePointer(
@@ -509,11 +558,13 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                           labelText: 'Tipo de Calzado',
                           border: const OutlineInputBorder(),
                           filled: true,
-                          fillColor: isEditing ? Colors.grey.shade200 : Colors.white,
+                          fillColor:
+                              isEditing ? Colors.grey.shade200 : Colors.white,
                         ),
                         value: existeEnLista ? idSeleccionadoStr : null,
                         items: tipos.map((data) {
-                          final idTipo = data['id_tipo_calzado']?.toString() ?? '';
+                          final idTipo =
+                              data['id_tipo_calzado']?.toString() ?? '';
                           final icono = data['icono'] ?? '';
                           final nombre = data['nombre'] ?? '';
                           return DropdownMenuItem<String>(
@@ -554,7 +605,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                         onChanged: (val) async {
                           setState(() => _selectedTipoCalzadoId = val);
                           if (val != null) {
-                            final tipoData = await TipoCalzadoService.obtenerPorId(val);
+                            final tipoData =
+                                await TipoCalzadoService.obtenerPorId(val);
                             if (tipoData != null) {
                               setState(() {
                                 _iconoSeleccionado = tipoData['icono'] ?? '';
@@ -588,7 +640,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       labelText: 'Nombre',
                       border: const OutlineInputBorder(),
                       filled: true,
-                      fillColor: isEditing ? Colors.grey.shade200 : Colors.white,
+                      fillColor:
+                          isEditing ? Colors.grey.shade200 : Colors.white,
                     ),
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Ingrese un nombre' : null,
@@ -624,7 +677,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_taco)
                         Row(
                           children: [
-                            const Text('Tiene Taco?', style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Taco?',
+                                style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _tacoCheckbox,
                               onChanged: (val) =>
@@ -635,7 +689,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_plataforma)
                         Row(
                           children: [
-                            const Text('Tiene Plataforma?', style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Plataforma?',
+                                style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _plataformaCheckbox,
                               onChanged: (val) => setState(
@@ -646,7 +701,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_colores)
                         Row(
                           children: [
-                            const Text('Tiene Colores?', style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Colores?',
+                                style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _coloresCheckbox,
                               onChanged: (val) => setState(
