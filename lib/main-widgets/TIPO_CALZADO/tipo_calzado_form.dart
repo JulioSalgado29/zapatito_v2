@@ -56,7 +56,8 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
     final iconos = manifestMap.keys
         .where((key) =>
             key.startsWith('lib/assets/calzados/') &&
-            (key.endsWith('.png') || key.endsWith('.jpg')))
+            (key.endsWith('.png') || key.endsWith('.jpg')) &&
+            !key.contains('muestra.png'))
         .toList();
 
     setState(() {
@@ -81,81 +82,82 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
   }
 
   Future<void> _guardarTipoCalzado() async {
-  if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return;
 
-  _mostrarSplashScreen();
+    _mostrarSplashScreen();
 
-  try {
-    final String nombre = _nombreController.text.trim();
-    final String? icono = _iconoSeleccionado;
-    final String usuarioCreacion = widget.firstName ?? '';
-    final String emailUsuario = widget.emailUser ?? '';
-    final String idInventario = widget.inventarioId ?? '';
+    try {
+      final String nombre = _nombreController.text.trim();
+      final String? icono = _iconoSeleccionado;
+      final String usuarioCreacion = widget.firstName ?? '';
+      final String emailUsuario = widget.emailUser ?? '';
+      final String idInventario = widget.inventarioId ?? '';
 
-    bool exito = false;
+      bool exito = false;
 
-    if (isEditing) {
-      // Extrae el ID del itemData recibido
-      final String id = widget.itemData?['id_tipo_calzado']?.toString() ?? '';
+      if (isEditing) {
+        // Extrae el ID del itemData recibido
+        final String id = widget.itemData?['id_tipo_calzado']?.toString() ?? '';
 
-      exito = await TipoCalzadoService.actualizar(
-        id: id,
-        nombre: nombre,
-        icono: icono,
-        usuarioCreacion: usuarioCreacion,
-        emailUsuario: emailUsuario,
-        taco: _taco,
-        plataforma: _plataforma,
-        colores: _colores,
-      );
-    } else {
-      exito = await TipoCalzadoService.crear(
-        nombre: nombre,
-        icono: icono,
-        usuarioCreacion: usuarioCreacion,
-        emailUsuario: emailUsuario,
-        taco: _taco,
-        plataforma: _plataforma,
-        colores: _colores,
-        idInventario: idInventario,
-      );
-    }
+        exito = await TipoCalzadoService.actualizar(
+          id: id,
+          nombre: nombre,
+          icono: icono,
+          usuarioCreacion: usuarioCreacion,
+          emailUsuario: emailUsuario,
+          taco: _taco,
+          plataforma: _plataforma,
+          colores: _colores,
+        );
+      } else {
+        exito = await TipoCalzadoService.crear(
+          nombre: nombre,
+          icono: icono,
+          usuarioCreacion: usuarioCreacion,
+          emailUsuario: emailUsuario,
+          taco: _taco,
+          plataforma: _plataforma,
+          colores: _colores,
+          idInventario: idInventario,
+        );
+      }
 
-    _ocultarSplashScreen();
+      _ocultarSplashScreen();
 
-    await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 150));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (exito) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isEditing
-                ? 'Tipo de calzado actualizado ✏️'
-                : 'Tipo de calzado agregado ✅',
+      if (exito) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isEditing
+                  ? 'Tipo de calzado actualizado ✏️'
+                  : 'Tipo de calzado agregado ✅',
+            ),
           ),
-        ),
-      );
-      // Retorna `true` a la pantalla principal para refrescar la grilla
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo guardar la información.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  } catch (e) {
-    _ocultarSplashScreen();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+        );
+        // Retorna `true` a la pantalla principal para refrescar la grilla
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo guardar la información.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      _ocultarSplashScreen();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return Padding(
