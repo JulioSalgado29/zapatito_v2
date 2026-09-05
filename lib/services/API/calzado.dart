@@ -1,71 +1,141 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:zapatito_v2/services/API/api_service.dart';
 
 class CalzadoService {
   // 1. Obtener la lista de calzados activos por ID de inventario
   // GET /api/calzado/inventario/:id_inventario
-  static Future<List<Map<String, dynamic>>> obtenerPorInventario(
-  dynamic idInventario,
-) async {
+  // 1. Obtener la Presigned URL desde el backend en Node.js
+  static Future<Map<String, String>?> obtenerPresignedUrl({
+  required String? idInventario,
+  required String extension,
+}) async {
   try {
-    if (idInventario == null) return [];
+    final url = Uri.parse('${ApiService.baseUrl}/api/calzado/presigned-url');
     
-    // Lo convertimos siempre a String de forma segura
-    final String idStr = idInventario.toString();
-    
-    final url = Uri.parse(
-      '${ApiService.baseUrl}/api/calzado/inventario/${Uri.encodeComponent(idStr)}',
-    );
-
-    final response = await http.get(
+    final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'id_inventario': idInventario,
+        'extension': extension,
+      }),
     );
 
+    print('Status Code: ${response.statusCode}');
+    print('Response Body: ${response.body}');
+
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return List<Map<String, dynamic>>.from(data);
-    } else {
-      print('Error al listar calzados. Status code: ${response.statusCode}');
-      return [];
+      final data = json.decode(response.body);
+      return {
+        'uploadUrl': data['uploadUrl']?.toString() ?? '',
+        'fileUrl': data['fileUrl']?.toString() ?? '',
+      };
     }
+    return null;
   } catch (e) {
-    print('Error de red al listar calzados: $e');
-    return [];
+    print('Error al solicitar presigned URL: $e');
+    return null;
   }
 }
+
+// 2. Subir el archivo binario directamente a AWS S3 mediante el método PUT
+  static Future<bool> subirImagenAS3({
+  required String uploadUrl,
+  required File file,
+}) async {
+  try {
+    final bytes = await file.readAsBytes();
+    final ext = file.path.split('.').last.toLowerCase();
+    
+    // Mapeo correcto de MIME Type
+    String contentType = 'image/jpeg';
+    if (ext == 'png') {
+      contentType = 'image/png';
+    } else if (ext == 'webp') {
+      contentType = 'image/webp';
+    }
+
+    final response = await http.put(
+      Uri.parse(uploadUrl),
+      headers: {
+        'Content-Type': contentType,
+      },
+      body: bytes,
+    );
+
+    print('Respuesta S3 Status Code: ${response.statusCode}');
+    print('Respuesta S3 Body: ${response.body}');
+
+    return response.statusCode == 200;
+  } catch (e) {
+    print('Error al subir imagen binaria a S3: $e');
+    return false;
+  }
+}
+
+  static Future<List<Map<String, dynamic>>> obtenerPorInventario(
+    dynamic idInventario,
+  ) async {
+    try {
+      if (idInventario == null) return [];
+
+      // Lo convertimos siempre a String de forma segura
+      final String idStr = idInventario.toString();
+
+      final url = Uri.parse(
+        '${ApiService.baseUrl}/api/calzado/inventario/${Uri.encodeComponent(idStr)}',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        print('Error al listar calzados. Status code: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error de red al listar calzados: $e');
+      return [];
+    }
+  }
 
   static Future<List<Map<String, dynamic>>> obtenerPorInventarioUpdate(
-  dynamic idInventario,
-) async {
-  try {
-    if (idInventario == null) return [];
-    
-    // Lo convertimos siempre a String de forma segura
-    final String idStr = idInventario.toString();
-    
-    final url = Uri.parse(
-      '${ApiService.baseUrl}/api/calzado/inventario/update/${Uri.encodeComponent(idStr)}',
-    );
+    dynamic idInventario,
+  ) async {
+    try {
+      if (idInventario == null) return [];
 
-    final response = await http.get(
-      url,
-      headers: {'Content-Type': 'application/json'},
-    );
+      // Lo convertimos siempre a String de forma segura
+      final String idStr = idInventario.toString();
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return List<Map<String, dynamic>>.from(data);
-    } else {
-      print('Error al listar calzados. Status code: ${response.statusCode}');
+      final url = Uri.parse(
+        '${ApiService.baseUrl}/api/calzado/inventario/update/${Uri.encodeComponent(idStr)}',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        print('Error al listar calzados. Status code: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('Error de red al listar calzados: $e');
       return [];
     }
-  } catch (e) {
-    print('Error de red al listar calzados: $e');
-    return [];
   }
-}
 
   // 1.b. Obtener la lista de calzados activos con colores = true por ID de inventario
   // GET /api/calzado/inventario/:id_inventario/colores
@@ -87,7 +157,8 @@ class CalzadoService {
         final List<dynamic> data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print('Error al listar calzados con colores. Status code: ${response.statusCode}');
+        print(
+            'Error al listar calzados con colores. Status code: ${response.statusCode}');
         return [];
       }
     } catch (e) {

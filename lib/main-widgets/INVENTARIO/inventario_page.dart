@@ -684,12 +684,14 @@ class _InventarioPageState extends State<InventarioPage> {
           ],
         ),
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildFab(
-            Designwidgets().linearGradientBlue(context),
-            "btn1",
+      
+      floatingActionButton: widget.isVendedor != true
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildFab(
+                  Designwidgets().linearGradientBlue(context),
+                  "btn1",
             _abrirFormulario,
             "Codigo",
             Icons.add_circle_outline,
@@ -713,7 +715,7 @@ class _InventarioPageState extends State<InventarioPage> {
             Icons.inventory_2,
           ),
         ],
-      ),
+      ): null,
     );
   }
 }

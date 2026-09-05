@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
@@ -32,6 +34,10 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
   final _precioController = TextEditingController();
   String? _selectedTipoCalzadoId;
 
+  // Manejo de multiples imagenes (hasta 25)
+  final List<File> _imagenesSeleccionadas = [];
+  final List<String> _imageUrlsRemotas = []; // Para URLs existentes en edicion
+
   bool _taco = false;
   bool _plataforma = false;
   bool _colores = false;
@@ -49,7 +55,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     super.initState();
 
     if (isEditing) {
-      final data = widget.calzado!; _nombreController.text = data['nombre'] ?? '';
+      final data = widget.calzado!;
+      _nombreController.text = data['nombre'] ?? '';
       final double precio = double.tryParse(data['precio_real']?.toString() ?? '0') ?? 0.0;
       _precioController.text = precio.toStringAsFixed(2);
       _selectedTipoCalzadoId = (data['id_tipo_calzado'] ?? data['tipo_calzado_id'])?.toString();
@@ -57,6 +64,15 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       _plataformaCheckbox = data['plataforma'] ?? false;
       _coloresCheckbox = data['colores'] ?? false;
       _iconoSeleccionado = data['icono'] ?? '';
+
+      // Si el backend envia una lista de imagenes o una sola URL
+      if (data['imagenes'] is List) {
+        _imageUrlsRemotas.addAll(List<String>.from(data['imagenes']));
+      } else if (data['imagen_url'] != null) {
+        _imageUrlsRemotas.add(data['imagen_url']);
+      } else if (data['imagen'] != null) {
+        _imageUrlsRemotas.add(data['imagen']);
+      }
     }
 
     _nombreController.addListener(_validarFormulario);
@@ -65,8 +81,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _validarFormulario();
       if (isEditing && _selectedTipoCalzadoId != null) {
-        final tipoMap =
-            await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
+        final tipoMap = await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
 
         if (tipoMap != null) {
           final data = tipoMap;
@@ -78,6 +93,56 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
         }
       }
     });
+  }
+
+  // Seleccionar multiples imagenes de la galeria (Limite: 25)
+  Future<void> _seleccionarImagenes() async {
+    final int imagenesActuales = _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
+    if (imagenesActuales >= 25) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ya se ha alcanzado el limite maximo de 25 imagenes.')),
+      );
+      return;
+    }
+
+    final ImagePicker picker = ImagePicker();
+    final List<XFile> imagenes = await picker.pickMultiImage(
+      imageQuality: 80,
+    );
+
+    if (imagenes.isNotEmpty) {
+      final int espacioDisponible = 25 - imagenesActuales;
+      final imagenesNuevas = imagenes.take(espacioDisponible).map((x) => File(x.path)).toList();
+
+      if (imagenes.length > espacioDisponible) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Solo se agregaron $espacioDisponible imagenes para no superar el limite de 25.'),
+            ),
+          );
+        }
+      }
+
+      setState(() {
+        _imagenesSeleccionadas.addAll(imagenesNuevas);
+      });
+      _validarFormulario();
+    }
+  }
+
+  void _eliminarImagenLocal(int index) {
+    setState(() {
+      _imagenesSeleccionadas.removeAt(index);
+    });
+    _validarFormulario();
+  }
+
+  void _eliminarImagenRemota(int index) {
+    setState(() {
+      _imageUrlsRemotas.removeAt(index);
+    });
+    _validarFormulario();
   }
 
   void _validarFormulario() {
@@ -99,7 +164,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     if (valor == null || valor.isEmpty) return 'Ingrese un precio';
     final precioText = valor.replaceAll("S/", "").trim();
     final precio = double.tryParse(precioText);
-    if (precio == null) return 'Ingrese solo números válidos';
+    if (precio == null) return 'Ingrese solo numeros validos';
     if (precio > 150) return 'No puede superar el precio de S/ 150';
     return null;
   }
@@ -126,9 +191,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     _mostrarSplashScreen();
 
-    final tipoMap =
-        await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
-
+    final tipoMap = await TipoCalzadoService.obtenerPorId(_selectedTipoCalzadoId!);
     final tipoData = tipoMap ?? {};
     final icono = tipoData['icono'] ?? _iconoSeleccionado ?? '';
 
@@ -142,12 +205,34 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     final double precioReal = double.parse(precio.toStringAsFixed(2));
     final String nombre = _nombreController.text.trim();
-
     try {
+      final List<String> urlsFinales = List.from(_imageUrlsRemotas);
+
+      // Subida de cada imagen seleccionada localmente a S3 mediante Presigned URLs
+      for (final imagenFile in _imagenesSeleccionadas) {
+        final ext = imagenFile.path.split('.').last;
+        print("¿Éxito en S3?: aca");
+        final presignedData = await CalzadoService.obtenerPresignedUrl(idInventario: widget.inventarioId, extension: ext);
+        print(presignedData);
+        if (presignedData != null && presignedData.containsKey('uploadUrl')) {
+          print("Subiendo a: ${presignedData['uploadUrl']}");
+          final bool exitoSubida = await CalzadoService.subirImagenAS3(
+            uploadUrl: presignedData['uploadUrl']!,
+            file: imagenFile,
+          );
+          print("¿Éxito en S3?: $exitoSubida");
+
+          if (exitoSubida) {
+            urlsFinales.add(presignedData['fileUrl']!);
+          }
+        }
+      }
+
+      print('sd');
+      // Guardar registro en la Base de Datos con las URLs generadas
       final bool exito = isEditing
           ? await CalzadoService.actualizar(
-              id: (widget.calzado!['id_calzado'] ?? widget.calzado!['id'])
-                  .toString(),
+              id: (widget.calzado!['id_calzado'] ?? widget.calzado!['id']).toString(),
               nombre: nombre,
               icono: icono,
               precioReal: precioReal,
@@ -179,15 +264,14 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             SnackBar(
               content: Text(
                 isEditing
-                    ? 'Código actualizado correctamente ✏️'
-                    : 'Código agregado correctamente ✅',
+                    ? 'Codigo actualizado correctamente'
+                    : 'Codigo agregado correctamente',
               ),
             ),
           );
         }
 
         await Future.delayed(const Duration(milliseconds: 150));
-
         if (mounted) Navigator.pop(context, true);
       } else {
         if (mounted) {
@@ -195,8 +279,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             SnackBar(
               content: Text(
                 isEditing
-                    ? 'Error al actualizar el código ❌'
-                    : 'Error al agregar el código ❌',
+                    ? 'Error al actualizar el codigo'
+                    : 'Error al agregar el codigo',
               ),
             ),
           );
@@ -214,13 +298,14 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final int totalImagenes = _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
+
     return Scaffold(
       appBar: Designwidgets().appBarMain(
-        isEditing ? "Editar Código" : "Agregar Código",
+        isEditing ? "Editar Codigo" : "Agregar Codigo",
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20)
-            .copyWith(top: 24, bottom: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 20).copyWith(top: 24, bottom: 40),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Form(
@@ -229,9 +314,139 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 16),
+                // Encabezado del visor de imagenes
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Imagenes ($totalImagenes/25)',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (totalImagenes < 25)
+                      TextButton.icon(
+                        onPressed: _seleccionarImagenes,
+                        icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+                        label: const Text('Agregar fotos'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
 
-                // 🔸 Tipo de calzado
+                // Galeria horizontal de fotos seleccionadas
+                SizedBox(
+                  height: 110,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      // Boton para seleccionar mas imagenes
+                      if (totalImagenes < 25)
+                        GestureDetector(
+                          onTap: _seleccionarImagenes,
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300, width: 2),
+                            ),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 28),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Subir',
+                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      // Listado de imagenes remotas (en edicion)
+                      ...List.generate(_imageUrlsRemotas.length, (index) {
+                        return Stack(
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              margin: const EdgeInsets.only(right: 10),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                                image: DecorationImage(
+                                  image: NetworkImage(_imageUrlsRemotas[index]),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () => _eliminarImagenRemota(index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+
+                      // Listado de nuevas imagenes locales seleccionadas
+                      ...List.generate(_imagenesSeleccionadas.length, (index) {
+                        return Stack(
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              margin: const EdgeInsets.only(right: 10),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                                image: DecorationImage(
+                                  image: FileImage(_imagenesSeleccionadas[index]),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () => _eliminarImagenLocal(index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Tipo de calzado
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: !isEditing
                       ? TipoCalzadoService.obtenerPorInventario(
@@ -258,9 +473,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                             Text(
                               'No hay tipos de calzado disponibles.',
                               style: TextStyle(
-                                color: mostrarAdvertencia
-                                    ? Colors.red
-                                    : Colors.black87,
+                                color: mostrarAdvertencia ? Colors.red : Colors.black87,
                                 fontSize: 16,
                                 fontWeight: mostrarAdvertencia
                                     ? FontWeight.bold
@@ -284,90 +497,83 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                     }
 
                     final tipos = snapshot.data!;
-                    // 💡 1. Convertir el ID seleccionado a String para evitar errores int vs String
-                    final idSeleccionadoStr =
-                        _selectedTipoCalzadoId?.toString();
-
-                    // 💡 2. Validar que el ID exista dentro de la lista traída de la API
-                    final existeEnLista = tipos.any((data) =>
-                        data['id_tipo_calzado']?.toString() ==
-                        idSeleccionadoStr);
+                    final idSeleccionadoStr = _selectedTipoCalzadoId?.toString();
+                    final existeEnLista = tipos.any(
+                      (data) => data['id_tipo_calzado']?.toString() == idSeleccionadoStr,
+                    );
 
                     return IgnorePointer(
-                        ignoring: isEditing,
-                        child: DropdownButtonFormField<String>(
-                          decoration: InputDecoration(
-                            labelText: 'Tipo de Calzado',
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor:
-                                isEditing ? Colors.grey.shade200 : Colors.white,
-                          ),
-                          value: existeEnLista ? idSeleccionadoStr : null,
-                          items: tipos.map((data) {
-                            final idTipo =
-                                data['id_tipo_calzado']?.toString() ?? '';
-                            final icono = data['icono'] ?? '';
-                            final nombre = data['nombre'] ?? '';
-                            return DropdownMenuItem<String>(
-                              value: idTipo,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (icono.toString().endsWith('.png') ||
-                                      icono.toString().endsWith('.jpg'))
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: Image.asset(
-                                        icono,
-                                        width: 28,
-                                        height: 28,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.image, size: 24),
-                                      ),
-                                    )
-                                  else
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: Text(
-                                        icono.toString(),
-                                        style: const TextStyle(fontSize: 22),
-                                      ),
+                      ignoring: isEditing,
+                      child: DropdownButtonFormField<String>(
+                        decoration: InputDecoration(
+                          labelText: 'Tipo de Calzado',
+                          border: const OutlineInputBorder(),
+                          filled: true,
+                          fillColor: isEditing ? Colors.grey.shade200 : Colors.white,
+                        ),
+                        value: existeEnLista ? idSeleccionadoStr : null,
+                        items: tipos.map((data) {
+                          final idTipo = data['id_tipo_calzado']?.toString() ?? '';
+                          final icono = data['icono'] ?? '';
+                          final nombre = data['nombre'] ?? '';
+                          return DropdownMenuItem<String>(
+                            value: idTipo,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (icono.toString().endsWith('.png') ||
+                                    icono.toString().endsWith('.jpg'))
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Image.asset(
+                                      icono,
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const Icon(Icons.image, size: 24),
                                     ),
-                                  Text(
-                                    nombre,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 16),
+                                  )
+                                else
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      icono.toString(),
+                                      style: const TextStyle(fontSize: 22),
+                                    ),
                                   ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) async {
-                            setState(() => _selectedTipoCalzadoId = val);
-                            if (val != null) {
-                              final tipoData =
-                                  await TipoCalzadoService.obtenerPorId(val);
-                              if (tipoData != null) {
-                                setState(() {
-                                  _iconoSeleccionado = tipoData['icono'] ?? '';
-                                  _taco = tipoData['taco'] ?? false;
-                                  _plataforma = tipoData['plataforma'] ?? false;
-                                  _colores = tipoData['colores'] ?? false;
+                                Text(
+                                  nombre,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) async {
+                          setState(() => _selectedTipoCalzadoId = val);
+                          if (val != null) {
+                            final tipoData = await TipoCalzadoService.obtenerPorId(val);
+                            if (tipoData != null) {
+                              setState(() {
+                                _iconoSeleccionado = tipoData['icono'] ?? '';
+                                _taco = tipoData['taco'] ?? false;
+                                _plataforma = tipoData['plataforma'] ?? false;
+                                _colores = tipoData['colores'] ?? false;
 
-                                  if (!_taco) _tacoCheckbox = false;
-                                  if (!_plataforma) _plataformaCheckbox = false;
-                                  if (!_colores) _coloresCheckbox = false;
-                                });
-                              }
+                                if (!_taco) _tacoCheckbox = false;
+                                if (!_plataforma) _plataformaCheckbox = false;
+                                if (!_colores) _coloresCheckbox = false;
+                              });
                             }
-                            _validarFormulario();
-                          },
-                          validator: (v) => v == null
-                              ? 'Seleccione un tipo de calzado'
-                              : null,
-                        ));
+                          }
+                          _validarFormulario();
+                        },
+                        validator: (v) =>
+                            v == null ? 'Seleccione un tipo de calzado' : null,
+                      ),
+                    );
                   },
                 ),
 
@@ -382,8 +588,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       labelText: 'Nombre',
                       border: const OutlineInputBorder(),
                       filled: true,
-                      fillColor:
-                          isEditing ? Colors.grey.shade200 : Colors.white,
+                      fillColor: isEditing ? Colors.grey.shade200 : Colors.white,
                     ),
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Ingrese un nombre' : null,
@@ -419,8 +624,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_taco)
                         Row(
                           children: [
-                            const Text('¿Tiene Taco?',
-                                style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Taco?', style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _tacoCheckbox,
                               onChanged: (val) =>
@@ -431,8 +635,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_plataforma)
                         Row(
                           children: [
-                            const Text('¿Tiene Plataforma?',
-                                style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Plataforma?', style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _plataformaCheckbox,
                               onChanged: (val) => setState(
@@ -443,8 +646,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                       if (_colores)
                         Row(
                           children: [
-                            const Text('¿Tiene Colores?',
-                                style: TextStyle(fontSize: 16)),
+                            const Text('Tiene Colores?', style: TextStyle(fontSize: 16)),
                             Checkbox(
                               value: _coloresCheckbox,
                               onChanged: (val) => setState(
@@ -457,14 +659,15 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
                 const SizedBox(height: 16),
 
-                // Botón Guardar / Actualizar
+                // Boton Guardar / Actualizar
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _isFormValid ? _guardarCalzado : null,
                     icon: Icon(isEditing ? Icons.save_as : Icons.save),
                     label: Text(
-                        isEditing ? 'Actualizar Código' : 'Guardar Código'),
+                      isEditing ? 'Actualizar Codigo' : 'Guardar Codigo',
+                    ),
                   ),
                 ),
               ],

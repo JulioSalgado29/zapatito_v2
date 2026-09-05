@@ -126,7 +126,7 @@ class _HomePageState extends State<HomePage> {
                           inventarioId: inventarioId,
                           isAlmacenero: isAlmacenero),
                     ),
-                if (isAdmin || isAlmacenero)
+                if (isAdmin || isAlmacenero ||isVendedor)
                   _buildMenuButton(
                     context,
                     label: 'Inventario',
