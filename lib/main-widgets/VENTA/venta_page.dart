@@ -491,7 +491,7 @@ class _VentaPageState extends State<VentaPage> {
                           filaData['colores'] != false &&
                           filaData['colores'] != '0')
                         _miniChip(
-                            'Color: ${filaData['colores']}', Colors.purple),
+                            'Color: ${filaData['color_nombre']}', Colors.purple),
                       if (filaData['taco'] != null &&
                           filaData['taco'] != 0 &&
                           filaData['taco'] != '0')

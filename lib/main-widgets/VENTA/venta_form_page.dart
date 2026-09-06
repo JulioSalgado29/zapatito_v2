@@ -35,13 +35,14 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
   String? _calzadoId;
   int? _tallaSeleccionada;
+  String? _idColorSeleccionado;
   String? _colorSeleccionado;
   int? _tacoSeleccionado;
   String? _plataformaSeleccionada;
 
   bool _tipoTieneTaco = false;
   bool _tipoTienePlataforma = false;
-  bool _tipoTieneColores = false;
+  bool _tipoTieneColores = true;
 
   int _cantidadVenta = 0;
   double _precioVentaTotal = 0.0;
@@ -83,10 +84,12 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
     try {
       // 1. Obtenemos calzados del inventario y el detalle del calzado a editar en paralelo
-      final calzadosFuture = CalzadoService.obtenerPorInventarioUpdate(widget.inventarioId);
+      final calzadosFuture =
+          CalzadoService.obtenerPorInventarioUpdate(widget.inventarioId);
       final detalleCalzadoFuture = CalzadoService.obtenerPorId(cId);
 
-      final resultados =await Future.wait([calzadosFuture, detalleCalzadoFuture]);
+      final resultados =
+          await Future.wait([calzadosFuture, detalleCalzadoFuture]);
 
       final listaCalzados = resultados[0] as List<Map<String, dynamic>>;
       final data = resultados[1] as Map<String, dynamic>?;
@@ -107,9 +110,13 @@ class _VentaFormPageState extends State<VentaFormPage> {
 
           _calzadoId = cId;
           _tallaSeleccionada = d['talla'];
-          _colorSeleccionado = (d['colores'] == '' || d['colores'] == null)
+          _idColorSeleccionado = (d['colores'] == '' || d['colores'] == null)
               ? null
               : d['colores'].toString();
+          _colorSeleccionado =
+              (d['color_nombre'] == '' || d['color_nombre'] == null)
+                  ? null
+                  : d['color_nombre'].toString();
           _tacoSeleccionado = (d['taco'] == 0 || d['taco'] == null)
               ? null
               : (d['taco'] as num).toInt();
@@ -169,7 +176,6 @@ class _VentaFormPageState extends State<VentaFormPage> {
       barrierDismissible: false,
       builder: (_) => const SplashScreen02(),
     );
-
     final exito = await FilaVentaService.editarVenta(
       idFilaVenta: widget.ventaId,
       data: {
@@ -177,11 +183,12 @@ class _VentaFormPageState extends State<VentaFormPage> {
         'id_calzado': _calzadoId,
         'talla': _tallaSeleccionada,
         // colores es VARCHAR: si no tiene o es nulo, envía "0"
-        'colores': _tipoTieneColores ? (_colorSeleccionado ?? "0") : "0",
+        'colores': _tipoTieneColores ? (_idColorSeleccionado ?? "0") : "0",
         // taco es INTEGER: si no tiene o es nulo, envía 0
         'taco': _tipoTieneTaco ? (_tacoSeleccionado ?? 0) : 0,
         // plataforma es VARCHAR: si no tiene o es nulo, envía "0"
-        'plataforma': _tipoTienePlataforma ? (_plataformaSeleccionada ?? "0") : "0",
+        'plataforma':
+            _tipoTienePlataforma ? (_plataformaSeleccionada ?? "0") : "0",
         'cantidad': _cantidadVenta,
         'precio_venta_total': _precioVentaTotal,
         'metodo_pago': _metodoPagoSeleccionado,
