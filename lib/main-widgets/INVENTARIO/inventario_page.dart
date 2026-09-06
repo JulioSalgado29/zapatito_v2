@@ -474,7 +474,7 @@ class _InventarioPageState extends State<InventarioPage> {
             .toString()
             .trim()
             .toLowerCase();
-        final String color = (subMap['colores'] ?? subMap['color'] ?? '')
+        final String color = (subMap['nombre_color'] ?? subMap['color'] ?? '')
             .toString()
             .trim()
             .toLowerCase();
@@ -846,7 +846,7 @@ class _FilaInventarioItem extends StatelessWidget {
                 final talla = sub['talla'];
                 final taco = sub['taco'];
                 final plataforma = sub['plataforma'];
-                final colores = sub['colores'];
+                final nombreColor = sub['nombre_color'];
 
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(
@@ -894,9 +894,9 @@ class _FilaInventarioItem extends StatelessWidget {
                       if (tienePlataforma && plataforma != null)
                         buildInfoChip('Plataforma: $plataforma'),
                       if (tieneColores &&
-                          colores != null &&
-                          colores.toString().isNotEmpty)
-                        buildInfoChip('Color: $colores', isColor: true),
+                          nombreColor != null &&
+                          nombreColor.toString().isNotEmpty)
+                        buildInfoChip('Color: $nombreColor', isColor: true),
                     ],
                   ),
                 );
