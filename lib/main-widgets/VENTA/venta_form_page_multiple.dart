@@ -239,22 +239,38 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
             item.tallaSeleccionada = null;
           }
 
-          final rawIdsColores = data['colores_disponibles'] ?? data['colores'] ?? [];
-          final rawNombresColores = data['nombres_colores_disponibles'] ?? [];
-
+          // 🔹 PARSEO DE COLORES (Soporta JSON de Objetos o Arreglos Paralelos)
           List<Map<String, dynamic>> coloresMapeados = [];
 
-          if (rawIdsColores is List) {
-            for (int i = 0; i < rawIdsColores.length; i++) {
-              final id = rawIdsColores[i];
-              final nombre = (rawNombresColores is List && i < rawNombresColores.length)
-                  ? rawNombresColores[i].toString()
-                  : id.toString();
+          final rawColoresEstructurados = data['colores_disponibles'] ?? data['lista_colores_disponibles'];
 
-              coloresMapeados.add({
-                'id': id,
-                'nombre': nombre,
-              });
+          if (rawColoresEstructurados is List &&
+              rawColoresEstructurados.isNotEmpty &&
+              rawColoresEstructurados.first is Map) {
+            // Opción 1: Llega directo como [{id: 1, nombre: 'Rojo'}, ...]
+            coloresMapeados = List<Map<String, dynamic>>.from(
+              rawColoresEstructurados.map((c) => {
+                'id': c['id'],
+                'nombre': c['nombre']?.toString() ?? c['id'].toString(),
+              }),
+            );
+          } else {
+            // Opción 2: Respaldo por si llegan arreglos separados (compatibilidad)
+            final rawIdsColores = data['colores_disponibles'] ?? data['colores'] ?? [];
+            final rawNombresColores = data['nombres_colores_disponibles'] ?? [];
+
+            if (rawIdsColores is List) {
+              for (int i = 0; i < rawIdsColores.length; i++) {
+                final id = rawIdsColores[i];
+                final nombre = (rawNombresColores is List && i < rawNombresColores.length)
+                    ? rawNombresColores[i].toString()
+                    : id.toString();
+
+                coloresMapeados.add({
+                  'id': id,
+                  'nombre': nombre,
+                });
+              }
             }
           }
 
@@ -523,8 +539,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   Widget _buildDropdownTalla(int index) {
     var item = _itemsVenta[index];
 
-    // 🔹 Si hay un calzado seleccionado y el backend ya devolvió respuesta,
-    // se usan 'tallasDisponibles'. De lo contrario, se cargan las tallas del inventario.
     final List<int> listadoTallas;
     if (item.calzadoId != null) {
       listadoTallas = item.tallasDisponibles;
@@ -542,7 +556,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: DropdownButtonFormField<int>(
-        // 🔹 Se fuerza la reconstrucción cuando cambian las opciones disponibles
         key: ValueKey('talla_dropdown_${index}_${item.calzadoId}_${listadoTallas.join("_")}'),
         decoration: InputDecoration(
           labelText: 'Talla',
