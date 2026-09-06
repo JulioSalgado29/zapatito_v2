@@ -4,6 +4,7 @@ import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
 import 'package:zapatito_v2/services/API/tipo_calzado.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 
 class InventarioFormPageColor extends StatefulWidget {
   final String? firstName;
@@ -24,6 +25,8 @@ class InventarioFormPageColor extends StatefulWidget {
 
 class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   late Future<List<Map<String, dynamic>>> _calzadosFuture;
+  List<Map<String, dynamic>> _listaColores = [];
+  
   String? _calzadoId;
   bool _tipoTienePlataforma = false;
   bool _tipoTieneColores = false;
@@ -71,6 +74,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     _calzadosFuture = CalzadoService.obtenerPorInventarioConColores(
       widget.inventarioId.toString(),
     );
+    _cargarColores();
     _agregarNuevoBloqueColor();
   }
 
@@ -80,8 +84,20 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     super.dispose();
   }
 
+  Future<void> _cargarColores() async {
+    try {
+      final colores = await ColoresService.obtenerPorInventario(widget.inventarioId.toString());
+      setState(() {
+        _listaColores = colores;
+      });
+    } catch (e) {
+      print('Error al cargar la lista de colores: $e');
+    }
+  }
+
   void _agregarNuevoBloqueColor() {
     _subfilasColor.add({
+      'id_color': null,
       'color': '',
       'cantidad_color': 0,
       'minisubfilas': <Map<String, dynamic>>[
@@ -162,7 +178,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       return;
     }
 
-// 2. Validar cantidad ingresada
+    // 2. Validar cantidad ingresada
     if (_cantidadFila <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -182,14 +198,15 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
     for (var i = 0; i < _subfilasColor.length; i++) {
       final bloqueColor = _subfilasColor[i];
+      final idColor = bloqueColor['id_color'];
       final colorNombre = (bloqueColor['color'] ?? '').toString().trim();
       final miniSubfilas =
           (bloqueColor['minisubfilas'] as List<dynamic>?) ?? [];
 
-      if (_tipoTieneColores && colorNombre.isEmpty) {
+      if (_tipoTieneColores && (idColor == null || idColor.toString().isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-                'Ingresa un nombre de color válido en la sección #${i + 1}')));
+                'Selecciona un color válido de la lista en la sección #${i + 1}')));
         return;
       }
 
@@ -229,7 +246,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
           return;
         }
 
-        final key = '${talla}_${taco}_${plataforma}_$colorNombre';
+        final key = '${talla}_${taco}_${plataforma}_$idColor';
         if (combinaciones.contains(key)) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(
@@ -245,7 +262,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
           'talla': talla.toString(),
           'taco': normalizarA0(taco),
           'plataforma': normalizarA0(plataforma),
-          'colores': normalizarA0(colorNombre),
+          'colores': idColor.toString(),
         });
       }
 
@@ -677,7 +694,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     final bloque = _subfilasColor[colorIndex];
     final miniSubfilas = (bloque['minisubfilas'] as List<dynamic>?) ?? [];
 
-    // Cálculo automático del total de este bloque de color
     final int cantidadColor = miniSubfilas.fold<int>(
       0,
       (sum, m) => sum + ((m['cantidad'] ?? 0) as int),
@@ -697,15 +713,51 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
               children: [
                 Expanded(
                   flex: 2,
-                  child: TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Color',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.color_lens_outlined),
-                      isDense: true,
-                    ),
-                    initialValue: bloque['color'] ?? '',
-                    onChanged: (v) => setState(() => bloque['color'] = v),
+                  child: Autocomplete<Map<String, dynamic>>(
+                    initialValue: TextEditingValue(text: bloque['color'] ?? ''),
+                    displayStringForOption: (option) =>
+                        option['nombre']?.toString() ??
+                        option['color']?.toString() ??
+                        '',
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return _listaColores;
+                      }
+                      return _listaColores.where((col) {
+                        final nombre = (col['nombre'] ?? col['color'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        return nombre.contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (Map<String, dynamic> seleccion) {
+                      setState(() {
+                        bloque['id_color'] = (seleccion['id_color'] ??
+                                seleccion['id'])
+                            ?.toString();
+                        bloque['color'] =
+                            (seleccion['nombre'] ?? seleccion['color'])?.toString() ?? '';
+                      });
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onFieldSubmitted) {
+                      return TextFormField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Seleccionar Color',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.color_lens_outlined),
+                          isDense: true,
+                        ),
+                        onChanged: (v) {
+                          setState(() {
+                            bloque['color'] = v;
+                            bloque['id_color'] = null;
+                          });
+                        },
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
