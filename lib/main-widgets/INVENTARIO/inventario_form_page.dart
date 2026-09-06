@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
 import 'package:zapatito_v2/services/API/tipo_calzado.dart';
 
@@ -25,9 +26,11 @@ class InventarioFormPage extends StatefulWidget {
 
 class _InventarioFormPageState extends State<InventarioFormPage> {
   late Future<List<Map<String, dynamic>>> _calzadosFuture;
+  List<Map<String, dynamic>> _listaColores = [];
+
   String? _calzadoId;
   bool _tipoTienePlataforma = false;
-  bool _tipoTieneColores = false;
+  bool _tipoTieneColores = true;
   bool _tipoTieneTaco = false;
 
   // Variables de control para los filtros visuales de subfilas
@@ -69,6 +72,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     _calzadosFuture = CalzadoService.obtenerPorInventario(
       widget.inventarioId.toString(),
     );
+    _cargarColores();
     if (widget.filaId != null) {
       _cargarDatosExistentes();
     } else {
@@ -76,7 +80,8 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
         'cantidad': 0,
         'talla': 0,
         'taco': 0,
-        'plataforma': null, // 🔹 Forzamos null para obligar selección
+        'plataforma': null,
+        'id_color': null,
         'colores': ''
       });
     }
@@ -86,6 +91,39 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   void dispose() {
     _filtroColorController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarColores() async {
+    try {
+      final colores = await ColoresService.obtenerPorInventario(
+        widget.inventarioId.toString(),
+      );
+      if (mounted) {
+        setState(() {
+          _listaColores = colores;
+          // Intentar resolver id_color para subfilas existentes que tengan solo el texto de colores
+          for (var sub in _subfilas) {
+            if (sub['id_color'] == null && (sub['colores'] ?? '').toString().isNotEmpty) {
+              final coincidencia = _listaColores.firstWhere(
+                (c) {
+                  final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                      .toString()
+                      .toLowerCase()
+                      .trim();
+                  return nombre == sub['colores'].toString().toLowerCase().trim();
+                },
+                orElse: () => {},
+              );
+              if (coincidencia.isNotEmpty) {
+                sub['id_color'] = coincidencia['id_color'] ?? coincidencia['id'];
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error al cargar la lista de colores: $e');
+    }
   }
 
   void _limpiarFiltros() {
@@ -103,7 +141,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     setState(() => _cargandoDatos = true);
 
     try {
-      // Peticiones en paralelo a la API
       final resultados = await Future.wait([
         FilaInventarioService.obtenerDetallePorId(widget.filaId),
         FilaInventarioService.obtenerSubfilas(widget.filaId),
@@ -113,32 +150,51 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       final listadoSubfilas = resultados[1] as List<Map<String, dynamic>>;
 
       if (detalle != null) {
-        // 1. Asignar datos de la fila y calzado (vienen del INNER JOIN)
         _calzadoId = detalle['id_calzado']?.toString();
         _tipoTieneTaco = detalle['taco'] ?? true;
         _tipoTienePlataforma = detalle['plataforma'] ?? true;
         _tipoTieneColores = detalle['colores'] ?? true;
 
-        // 2. Cargar subfilas de la API
         _subfilas.clear();
         for (var item in listadoSubfilas) {
+          final nombreColorStr = (item['nombre_color'] ?? item['colores'] ?? '').toString();
+          dynamic idColorVal = item['id_color'];
+
+          // Si id_color viene nulo pero hay texto, intentar emparejarlo con la lista cargada
+          if (idColorVal == null && nombreColorStr.isNotEmpty && _listaColores.isNotEmpty) {
+            final coincidencia = _listaColores.firstWhere(
+              (c) {
+                final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                return nombre == nombreColorStr.toLowerCase().trim();
+              },
+              orElse: () => {},
+            );
+            if (coincidencia.isNotEmpty) {
+              idColorVal = coincidencia['id_color'] ?? coincidencia['id'];
+            }
+          }
+
           _subfilas.add({
             'id': item['id_subfila_inventario'] ?? item['id'],
             'cantidad': item['cantidad'] ?? 0,
             'talla': item['talla'] ?? 0,
             'taco': item['taco'] ?? 0,
-            'plataforma': item['plataforma'], // String o null
-            'colores': item['colores'] ?? '',
+            'plataforma': item['plataforma'],
+            'id_color': idColorVal,
+            'colores': nombreColorStr,
           });
         }
 
-        // 3. Fila por defecto si no existen subfilas registradas
         if (_subfilas.isEmpty) {
           _subfilas.add({
             'cantidad': 0,
             'talla': 0,
             'taco': 0,
             'plataforma': null,
+            'id_color': null,
             'colores': ''
           });
         }
@@ -202,7 +258,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
   Future<void> _guardarFilaInventario() async {
     final int cantidadTotal = _cantidadTotalCalculada;
 
-    // 1. Validar si se seleccionó un calzado
     if (_calzadoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, selecciona un calzado')),
@@ -210,7 +265,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       return;
     }
 
-// 2. Validar la cantidad total
     if (cantidadTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agrega una cantidad mayor a 0')),
@@ -220,8 +274,25 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
     final combinaciones = <String>{};
     for (var sub in _subfilas) {
+      // Intenta resolver id_color automáticamente si está en null pero hay texto ingresado
+      if (sub['id_color'] == null && (sub['colores'] ?? '').toString().trim().isNotEmpty) {
+        final coincidencia = _listaColores.firstWhere(
+          (c) {
+            final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+            return nombre == sub['colores'].toString().toLowerCase().trim();
+          },
+          orElse: () => {},
+        );
+        if (coincidencia.isNotEmpty) {
+          sub['id_color'] = coincidencia['id_color'] ?? coincidencia['id'];
+        }
+      }
+
       final key =
-          '${sub['talla']}_${sub['taco']}_${sub['plataforma']}_${sub['colores']}';
+          '${sub['talla']}_${sub['taco']}_${sub['plataforma']}_${sub['id_color']}';
 
       if ((sub['cantidad'] ?? 0) <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -242,10 +313,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 'Selecciona el tipo de plataforma en todas las subfilas')));
         return;
       }
-      if ((sub['colores'] ?? '') == '' && _tipoTieneColores) {
+      if (_tipoTieneColores && sub['id_color'] == null) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content:
-                Text('Todas las subfilas deben tener un color especificado')));
+                Text('Todas las subfilas deben tener un color seleccionado')));
         return;
       }
       if (combinaciones.contains(key)) {
@@ -265,7 +336,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
           'talla': sub['talla']?.toString().trim() ?? '0',
           'taco': normalizarA0(sub['taco']),
           'plataforma': normalizarA0(sub['plataforma']),
-          'colores': normalizarA0(sub['colores']),
+          'colores': normalizarA0(sub['id_color']),
         };
       }).toList();
 
@@ -296,10 +367,12 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       _ocultarSplashScreen();
 
       if (exito) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inventario guardado correctamente')),
-        );
-        Navigator.pop(context, true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Inventario guardado correctamente')),
+          );
+          Navigator.pop(context, true);
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -309,8 +382,10 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       }
     } catch (e) {
       _ocultarSplashScreen();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      }
     }
   }
 
@@ -322,7 +397,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Barra superior de control
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -478,17 +552,51 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 const SizedBox(width: 8),
               if (_tipoTieneColores)
                 Expanded(
-                  child: TextFormField(
-                    controller: _filtroColorController,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar Color',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (v) => setState(() {
-                      _filtroColor = v;
-                      _paginaActual = 1;
-                    }),
+                  child: Autocomplete<Map<String, dynamic>>(
+                    displayStringForOption: (option) =>
+                        (option['nombre_color'] ?? option['nombre'] ?? option['color'])?.toString() ?? '',
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return _listaColores;
+                      }
+                      return _listaColores.where((col) {
+                        final nombre = (col['nombre_color'] ?? col['nombre'] ?? col['color'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        return nombre
+                            .contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (Map<String, dynamic> selection) {
+                      setState(() {
+                        _filtroColor =
+                            (selection['nombre_color'] ?? selection['nombre'] ?? selection['color'])
+                                    ?.toString() ??
+                                '';
+                        _filtroColorController.text = _filtroColor;
+                        _paginaActual = 1;
+                      });
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onFieldSubmitted) {
+                      if (_filtroColorController.text != controller.text) {
+                        controller.text = _filtroColorController.text;
+                      }
+                      return TextFormField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Filtrar Color',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.color_lens_outlined),
+                        ),
+                        onChanged: (v) => setState(() {
+                          _filtroColor = v;
+                          _filtroColorController.text = v;
+                          _paginaActual = 1;
+                        }),
+                      );
+                    },
                   ),
                 ),
             ],
@@ -601,13 +709,64 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
         if (_tipoTieneColores)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                  labelText: 'Color',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.color_lens_outlined)),
-              initialValue: sub['colores'] ?? '',
-              onChanged: (v) => setState(() => _subfilas[index]['colores'] = v),
+            child: Autocomplete<Map<String, dynamic>>(
+              initialValue: TextEditingValue(text: sub['colores'] ?? ''),
+              displayStringForOption: (option) =>
+                  (option['nombre_color'] ?? option['nombre'] ?? option['color'])?.toString() ?? '',
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return _listaColores;
+                }
+                return _listaColores.where((col) {
+                  final nombre = (col['nombre_color'] ?? col['nombre'] ?? col['color'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  return nombre
+                      .contains(textEditingValue.text.toLowerCase());
+                });
+              },
+              onSelected: (Map<String, dynamic> seleccion) {
+                setState(() {
+                  _subfilas[index]['id_color'] =
+                      seleccion['id_color'] ?? seleccion['id'];
+                  _subfilas[index]['colores'] =
+                      (seleccion['nombre_color'] ?? seleccion['nombre'] ?? seleccion['color'])?.toString() ??
+                          '';
+                });
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Color',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.color_lens_outlined),
+                  ),
+                  onChanged: (v) => setState(() {
+                    _subfilas[index]['colores'] = v;
+                    
+                    // Buscar si el texto ingresado coincide con algún color de la lista para asignar id_color
+                    final coincidencia = _listaColores.firstWhere(
+                      (c) {
+                        final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                            .toString()
+                            .toLowerCase()
+                            .trim();
+                        return nombre == v.toLowerCase().trim();
+                      },
+                      orElse: () => {},
+                    );
+
+                    if (coincidencia.isNotEmpty) {
+                      _subfilas[index]['id_color'] = coincidencia['id_color'] ?? coincidencia['id'];
+                    } else {
+                      _subfilas[index]['id_color'] = null;
+                    }
+                  }),
+                );
+              },
             ),
           ),
         const SizedBox(height: 12),
@@ -737,9 +896,12 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               orElse: () => {},
             );
             if (calzadoSeleccionado.isNotEmpty) {
-              _tipoTieneTaco = calzadoSeleccionado['taco'] ?? true;
-              _tipoTienePlataforma = calzadoSeleccionado['plataforma'] ?? true;
-              _tipoTieneColores = calzadoSeleccionado['colores'] ?? true;
+              setState(() {
+                _tipoTieneTaco = calzadoSeleccionado['taco'] ?? true;
+                _tipoTienePlataforma =
+                    calzadoSeleccionado['plataforma'] ?? true;
+                _tipoTieneColores = calzadoSeleccionado['colores'] ?? true;
+              });
             }
           }
         },
@@ -831,7 +993,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
               ),
               const SizedBox(height: 12),
 
-              // 🔹 CAMPO DE CANTIDAD TOTAL (Informativo y con estilo dinamico)
               TextFormField(
                 key: ValueKey('cantidad_total_$totalSeriesCalculado'),
                 initialValue: totalSeriesCalculado.toString(),
@@ -881,6 +1042,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                         'talla': 0,
                         'taco': 0,
                         'plataforma': null,
+                        'id_color': null,
                         'colores': ''
                       });
                       _paginaActual = 1;
