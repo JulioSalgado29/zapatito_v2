@@ -81,7 +81,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       if (widget.inventarioId != null && widget.inventarioId!.isNotEmpty) {
         final listaColoresMap =
             await ColoresService.obtenerPorInventario(widget.inventarioId!);
-        
+
         final listaNombres = listaColoresMap
             .map((item) => item['nombre']?.toString().trim() ?? '')
             .where((nombre) => nombre.isNotEmpty)
@@ -207,7 +207,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       }
     });
   }
-  
+
   // Seleccionar una imagen asociando un color filtrable mediante búsqueda desplegable
   Future<void> _seleccionarImagenConColor() async {
     if (_coloresDisponibles.isEmpty) {
@@ -231,7 +231,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     if (coloresFiltradosDisponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Ya has registrado imágenes para todos los colores disponibles.'),
+          content: Text(
+              'Ya has registrado imágenes para todos los colores disponibles.'),
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -432,6 +433,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     final double precioReal = double.parse(precio.toStringAsFixed(2));
     final String nombre = _nombreController.text.trim();
+
     try {
       final List<String> urlsFinales = [];
 
@@ -439,9 +441,23 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
         if (item.esRemota) {
           urlsFinales.add(item.urlRemota!);
         } else if (item.fileLocal != null) {
-          final ext = item.fileLocal!.path.split('.').last;
+          // 1. Extraer extensión de forma segura para Android e iOS
+          String ext = 'jpg';
+          final pathLower = item.fileLocal!.path.toLowerCase();
+          if (pathLower.endsWith('.png')) {
+            ext = 'png';
+          } else if (pathLower.endsWith('.webp')) {
+            ext = 'webp';
+          } else if (pathLower.contains('.')) {
+            final possibleExt = pathLower.split('.').last;
+            if (possibleExt.length <= 4) {
+              ext = possibleExt;
+            }
+          }
+
           final rutaConColor = "$nombre/${item.color.toLowerCase()}";
 
+          // 2. Obtener la presigned URL
           final presignedData = await CalzadoService.obtenerPresignedUrl(
             idInventario: widget.inventarioId,
             nombre: rutaConColor,
@@ -449,12 +465,17 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
           );
 
           if (presignedData != null && presignedData.containsKey('uploadUrl')) {
+            // 3. Subir enviando la extensión sanitizada
             final bool exitoSubida = await CalzadoService.subirImagenAS3(
               uploadUrl: presignedData['uploadUrl']!,
               file: item.fileLocal!,
+              extension: ext,
             );
+
             if (exitoSubida) {
               urlsFinales.add(presignedData['fileUrl']!);
+            } else {
+              print('❌ Falló la subida de imagen para el color: ${item.color}');
             }
           }
         }
@@ -523,9 +544,10 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       }
     } catch (e) {
       _ocultarSplashScreen();
+      print('❌ Error dentro del try-catch de _guardarCalzado: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error al procesar: $e')),
         );
       }
     }
@@ -606,8 +628,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                               SizedBox(height: 4),
                               Text(
                                 'Subir',
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 12),
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 12),
                               ),
                             ],
                           ),
@@ -861,8 +883,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                 if (widget.isAlmacenero != true) const SizedBox(height: 16),
 
                 // Taco / Plataforma / Colores
-                if (_selectedTipoCalzadoId != null &&
-                    (_taco || _plataforma))
+                if (_selectedTipoCalzadoId != null && (_taco || _plataforma))
                   Column(
                     children: [
                       if (_taco)
