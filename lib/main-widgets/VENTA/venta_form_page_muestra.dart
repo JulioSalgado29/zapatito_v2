@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
+import 'package:zapatito_v2/services/API/colores.dart'; // 🔹 Ajusta el import a tu servicio de colores
 import 'package:zapatito_v2/services/API/dueno_muestra.dart';
 import 'package:zapatito_v2/services/API/fila_venta.dart';
 
@@ -10,7 +11,7 @@ class VentaItem {
   String? duenoMuestraId;
   String descripcionMuestra = '';
   int? tallaSeleccionada;
-  String? colorSeleccionado;
+  int? colorSeleccionado; // 🔹 Almacena el ID del color
 
   int cantidadVenta = 0;
   double precioVentaTotal = 0.0;
@@ -39,7 +40,7 @@ class VentaItem {
     muestraController.clear();
     cantidadController.clear();
     precioController.clear();
-    colorController.clear();
+    colorController.clear(); // 🔹 Limpia el campo de texto del color
   }
 
   void dispose() {
@@ -71,6 +72,8 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
   // Data general que solo se consulta 1 vez
   List<Map<String, dynamic>> _duenosMuestra = [];
+  List<Map<String, dynamic>> _colores =
+      []; // 🔹 Lista de colores cargada desde la API
 
   bool _cargandoInicial = true;
 
@@ -101,12 +104,16 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     }
 
     try {
-      final duenos =
-          await DuenoMuestraService.obtenerPorInventario(widget.inventarioId!);
+      final resultados = await Future.wait([
+        DuenoMuestraService.obtenerPorInventario(widget.inventarioId!),
+        ColoresService.obtenerPorInventario(
+            widget.inventarioId!), // 🔹 Llamada al servicio de colores
+      ]);
 
       if (mounted) {
         setState(() {
-          _duenosMuestra = duenos;
+          _duenosMuestra = resultados[0];
+          _colores = resultados[1];
           _cargandoInicial = false;
         });
         _agregarNuevoItem();
@@ -157,7 +164,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           'descripcion_muestra': item.descripcionMuestra,
           'talla': item.tallaSeleccionada,
           'taco': 0,
-          'colores': item.colorSeleccionado,
+          'colores': item.colorSeleccionado, // 🔹 Envía el ID del color (int?)
           'plataforma': "0",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
@@ -202,40 +209,40 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
   }
 
   Widget _buildInputDescripcionMuestra(int index) {
-  final itemActual = _itemsVenta[index];
-  final bool tieneTexto = itemActual.descripcionMuestra.trim().isNotEmpty;
+    final itemActual = _itemsVenta[index];
+    final bool tieneTexto = itemActual.descripcionMuestra.trim().isNotEmpty;
 
-  return Padding(
-    padding: const EdgeInsets.only(top: 12),
-    child: TextFormField(
-      controller: itemActual.muestraController,
-      decoration: InputDecoration(
-        labelText: 'Descripción de la Muestra',
-        border: const OutlineInputBorder(),
-        prefixIcon: tieneTexto
-            ? Padding(
-                padding: const EdgeInsets.all(10.0), // Ajusta el espacio interno
-                child: Image.asset(
-                  'lib/assets/calzados/muestra.png',
-                  width: 20,
-                  height: 20,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.green,
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: TextFormField(
+        controller: itemActual.muestraController,
+        decoration: InputDecoration(
+          labelText: 'Descripción de la Muestra',
+          border: const OutlineInputBorder(),
+          prefixIcon: tieneTexto
+              ? Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Image.asset(
+                    'lib/assets/calzados/muestra.png',
+                    width: 20,
+                    height: 20,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.green,
+                    ),
                   ),
-                ),
-              )
-            : null,
+                )
+              : null,
+        ),
+        onChanged: (text) {
+          setState(() {
+            itemActual.descripcionMuestra = text;
+          });
+        },
       ),
-      onChanged: (text) {
-        setState(() {
-          itemActual.descripcionMuestra = text;
-        });
-      },
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildCascadaAtributos(int index) {
     var item = _itemsVenta[index];
@@ -256,15 +263,107 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             onChanged: (v) => setState(() => item.tallaSeleccionada = v),
           ),
         ),
+        // 🔹 Buscador de Color mediante Autocomplete funcional para escribir
         Padding(
           padding: const EdgeInsets.only(top: 12),
-          child: TextFormField(
-            controller: item.colorController,
-            decoration: const InputDecoration(
-                labelText: 'Color',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.palette)),
-            onChanged: (v) => setState(() => item.colorSeleccionado = v),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Autocomplete<Map<String, dynamic>>(
+                displayStringForOption: (option) =>
+                    option['nombre'] ?? option['descripcion'] ?? '',
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text.isEmpty) {
+                    return _colores;
+                  }
+                  return _colores.where((color) {
+                    final nombre =
+                        (color['nombre'] ?? color['descripcion'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                    return nombre.contains(textEditingValue.text.toLowerCase());
+                  });
+                },
+                onSelected: (Map<String, dynamic> colorSeleccionado) {
+                  final int id = int.tryParse(
+                          colorSeleccionado['id_color']?.toString() ?? '') ??
+                      0;
+                  setState(() {
+                    item.colorSeleccionado = id;
+                  });
+                },
+                fieldViewBuilder:
+                    (context, textController, focusNode, onFieldSubmitted) {
+                  // Sincroniza el controlador interno de Autocomplete con nuestro VentaItem
+                  textController.addListener(() {
+                    item.colorController.text = textController.text;
+                    if (textController.text.isEmpty &&
+                        item.colorSeleccionado != null) {
+                      setState(() {
+                        item.colorSeleccionado = null;
+                      });
+                    }
+                  });
+
+                  // Mantiene el valor en caso de limpiarse desde fuera
+                  if (item.colorController.text.isEmpty &&
+                      textController.text.isNotEmpty) {
+                    textController.clear();
+                  }
+
+                  return TextFormField(
+                    controller: textController,
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      labelText: 'Color',
+                      hintText: 'Escribe para buscar...',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.palette),
+                      suffixIcon: textController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                textController.clear();
+                                setState(() {
+                                  item.colorSeleccionado = null;
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                          maxHeight:
+                              200, // 🔹 Se aplica el límite de altura correctamente
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (BuildContext context, int optionIndex) {
+                            final option = options.elementAt(optionIndex);
+                            final nombre =
+                                option['nombre'] ?? option['descripcion'] ?? '';
+                            return ListTile(
+                              title: Text(nombre),
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ],
@@ -399,6 +498,8 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             i.descripcionMuestra.trim().isNotEmpty &&
             i.duenoMuestraId != null &&
             i.tallaSeleccionada != null &&
+            i.colorSeleccionado !=
+                null && // 🔹 Obliga a seleccionar un color válido
             i.metodoPagoSeleccionado != null &&
             i.lugarVentaSeleccionado != null &&
             i.cantidadVenta > 0 &&
