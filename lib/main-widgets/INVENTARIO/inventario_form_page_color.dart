@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
 import 'package:zapatito_v2/services/API/tipo_calzado.dart';
-import 'package:zapatito_v2/services/API/colores.dart';
 
 class InventarioFormPageColor extends StatefulWidget {
   final String? firstName;
@@ -26,10 +26,10 @@ class InventarioFormPageColor extends StatefulWidget {
 class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   late Future<List<Map<String, dynamic>>> _calzadosFuture;
   List<Map<String, dynamic>> _listaColores = [];
-  
+
   String? _calzadoId;
   bool _tipoTienePlataforma = false;
-  bool _tipoTieneColores = false;
+  bool _tipoTieneColores = true;
   bool _tipoTieneTaco = false;
 
   // Variables de control para los filtros visuales de subfilas
@@ -86,10 +86,13 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
 
   Future<void> _cargarColores() async {
     try {
-      final colores = await ColoresService.obtenerPorInventario(widget.inventarioId.toString());
-      setState(() {
-        _listaColores = colores;
-      });
+      final colores = await ColoresService.obtenerPorInventario(
+          widget.inventarioId.toString());
+      if (mounted) {
+        setState(() {
+          _listaColores = colores;
+        });
+      }
     } catch (e) {
       print('Error al cargar la lista de colores: $e');
     }
@@ -170,7 +173,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   }
 
   Future<void> _guardarFilaInventario() async {
-    // 1. Validar selección de calzado
     if (_calzadoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, selecciona un calzado')),
@@ -178,7 +180,6 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       return;
     }
 
-    // 2. Validar cantidad ingresada
     if (_cantidadFila <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -203,7 +204,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
       final miniSubfilas =
           (bloqueColor['minisubfilas'] as List<dynamic>?) ?? [];
 
-      if (_tipoTieneColores && (idColor == null || idColor.toString().isEmpty)) {
+      if (_tipoTieneColores &&
+          (idColor == null || idColor.toString().isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
                 'Selecciona un color válido de la lista en la sección #${i + 1}')));
@@ -475,17 +477,52 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                 const SizedBox(width: 8),
               if (_tipoTieneColores)
                 Expanded(
-                  child: TextFormField(
-                    controller: _filtroColorController,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar Color',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (v) => setState(() {
-                      _filtroColor = v;
-                      _paginaActual = 1;
-                    }),
+                  child: Autocomplete<Map<String, dynamic>>(
+                    displayStringForOption: (option) =>
+                        (option['nombre'] ?? option['color'])?.toString() ?? '',
+                    initialValue: TextEditingValue(text: _filtroColor),
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return _listaColores;
+                      }
+                      return _listaColores.where((col) {
+                        final nombre = (col['nombre'] ?? col['color'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        return nombre
+                            .contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (Map<String, dynamic> selection) {
+                      setState(() {
+                        _filtroColor =
+                            (selection['nombre'] ?? selection['color'])
+                                    ?.toString() ??
+                                '';
+                        _filtroColorController.text = _filtroColor;
+                        _paginaActual = 1;
+                      });
+                    },
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onFieldSubmitted) {
+                      if (_filtroColorController.text != controller.text) {
+                        controller.text = _filtroColorController.text;
+                      }
+                      return TextFormField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Filtrar Color',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.color_lens_outlined),
+                        ),
+                        onChanged: (v) => setState(() {
+                          _filtroColor = v;
+                          _filtroColorController.text = v; // Mantener sincronizado
+                          _paginaActual = 1;
+                        }),
+                      );
+                    },
                   ),
                 ),
             ],
@@ -716,9 +753,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                   child: Autocomplete<Map<String, dynamic>>(
                     initialValue: TextEditingValue(text: bloque['color'] ?? ''),
                     displayStringForOption: (option) =>
-                        option['nombre']?.toString() ??
-                        option['color']?.toString() ??
-                        '',
+                        (option['nombre'] ?? option['color'])?.toString() ?? '',
                     optionsBuilder: (TextEditingValue textEditingValue) {
                       if (textEditingValue.text.isEmpty) {
                         return _listaColores;
@@ -727,16 +762,19 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                         final nombre = (col['nombre'] ?? col['color'] ?? '')
                             .toString()
                             .toLowerCase();
-                        return nombre.contains(textEditingValue.text.toLowerCase());
+                        return nombre
+                            .contains(textEditingValue.text.toLowerCase());
                       });
                     },
                     onSelected: (Map<String, dynamic> seleccion) {
                       setState(() {
-                        bloque['id_color'] = (seleccion['id_color'] ??
-                                seleccion['id'])
-                            ?.toString();
+                        bloque['id_color'] =
+                            (seleccion['id_color'] ?? seleccion['id'])
+                                ?.toString();
                         bloque['color'] =
-                            (seleccion['nombre'] ?? seleccion['color'])?.toString() ?? '';
+                            (seleccion['nombre'] ?? seleccion['color'])
+                                    ?.toString() ??
+                                '';
                       });
                     },
                     fieldViewBuilder:
@@ -753,7 +791,19 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                         onChanged: (v) {
                           setState(() {
                             bloque['color'] = v;
-                            bloque['id_color'] = null;
+                            final coincidencia = _listaColores.firstWhere(
+                              (c) =>
+                                  (c['nombre'] ?? c['color'])
+                                      ?.toString()
+                                      .toLowerCase() ==
+                                  v.trim().toLowerCase(),
+                              orElse: () => {},
+                            );
+                            bloque['id_color'] = coincidencia.isNotEmpty
+                                ? (coincidencia['id_color'] ??
+                                        coincidencia['id'])
+                                    ?.toString()
+                                : null;
                           });
                         },
                       );
@@ -880,9 +930,11 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
             orElse: () => {},
           );
           if (calzadoSeleccionado.isNotEmpty) {
-            _tipoTieneTaco = calzadoSeleccionado['taco'] ?? true;
-            _tipoTienePlataforma = calzadoSeleccionado['plataforma'] ?? true;
-            _tipoTieneColores = calzadoSeleccionado['colores'] ?? true;
+            setState(() {
+              _tipoTieneTaco = calzadoSeleccionado['taco'] ?? true;
+              _tipoTienePlataforma = calzadoSeleccionado['plataforma'] ?? true;
+              _tipoTieneColores = calzadoSeleccionado['colores'] ?? true;
+            });
           }
         }
       },
@@ -901,23 +953,22 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
           _filtroColor.trim().isEmpty ||
           colorNombre.toLowerCase().contains(_filtroColor.trim().toLowerCase());
 
-      bool coincideMiniSubfilas = true;
+      bool coincideMiniSubfilas = miniSubfilas.isEmpty;
 
-      if (_filtroTalla != null ||
-          _filtroTaco != null ||
-          _filtroPlataforma != null) {
-        coincideMiniSubfilas = miniSubfilas.any((sub) {
-          final bool coincideTalla =
-              _filtroTalla == null || sub['talla'] == _filtroTalla;
-          final bool coincideTaco = !_tipoTieneTaco ||
-              _filtroTaco == null ||
-              sub['taco'] == _filtroTaco;
-          final bool coincidePlataforma = !_tipoTienePlataforma ||
-              _filtroPlataforma == null ||
-              sub['plataforma'] == _filtroPlataforma;
+      for (var mini in miniSubfilas) {
+        final bool coincideTalla =
+            _filtroTalla == null || mini['talla'] == _filtroTalla;
+        final bool coincideTaco = !_tipoTieneTaco ||
+            _filtroTaco == null ||
+            mini['taco'] == _filtroTaco;
+        final bool coincidePlataforma = !_tipoTienePlataforma ||
+            _filtroPlataforma == null ||
+            mini['plataforma'] == _filtroPlataforma;
 
-          return coincideTalla && coincideTaco && coincidePlataforma;
-        });
+        if (coincideTalla && coincideTaco && coincidePlataforma) {
+          coincideMiniSubfilas = true;
+          break;
+        }
       }
 
       if (coincideColor && coincideMiniSubfilas) {
@@ -929,112 +980,104 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     final int visibles = subfilasFiltradasIndices.length;
     final int ocultas = totalSubfilas - visibles;
 
-    final List<int> indicesOrdenadosVisualmente =
+    final List<int> indicesInvertidos =
         subfilasFiltradasIndices.reversed.toList();
 
     final int inicio = (_paginaActual - 1) * _itemsPorPagina;
-    final int fin =
-        (inicio + _itemsPorPagina < indicesOrdenadosVisualmente.length)
-            ? inicio + _itemsPorPagina
-            : indicesOrdenadosVisualmente.length;
+    final int fin = (inicio + _itemsPorPagina < indicesInvertidos.length)
+        ? inicio + _itemsPorPagina
+        : indicesInvertidos.length;
 
-    final List<int> indicesPaginados =
-        (inicio < indicesOrdenadosVisualmente.length)
-            ? indicesOrdenadosVisualmente.sublist(inicio, fin)
-            : [];
+    final List<int> indicesPaginados = (inicio < indicesInvertidos.length)
+        ? indicesInvertidos.sublist(inicio, fin)
+        : [];
 
     return Scaffold(
       appBar: Designwidgets().appBarMain("Agregado por Color"),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _calzadosFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _calzadosFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SplashScreen02();
+          }
 
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No tienes calzados registrados.');
-                  }
+          final calzados = snapshot.data ?? [];
 
-                  final calzados = snapshot.data!
-                      .where((item) =>
-                          item['activo'] == true || item['activo'] == 1)
-                      .toList();
-
-                  if (calzados.isEmpty) {
-                    return const Text('No tienes calzados registrados.');
-                  }
-
-                  return _buildDropdownConIconos(calzados);
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                key: ValueKey('cant_total_fila_$_cantidadFila'),
-                readOnly: true,
-                enabled: false,
-                initialValue: '$_cantidadFila',
-                style: TextStyle(
-                  color: _cantidadFila > 0
-                      ? Colors.green.shade800
-                      : Colors.black87,
-                  fontWeight:
-                      _cantidadFila > 0 ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 16,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Cantidad total de pares',
-                  border: const OutlineInputBorder(),
-                  filled: _cantidadFila > 0,
-                  fillColor: _cantidadFila > 0 ? Colors.green.shade50 : null,
-                ),
-              ),
-              const Divider(height: 32),
-              const Text('Desglose por Color',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 12),
-              _buildSeccionFiltros(visibles, totalSubfilas),
-              const SizedBox(height: 12),
-              ...indicesPaginados.map((index) => KeyedSubtree(
-                    key: ValueKey(_subfilasColor[index]),
-                    child: _buildBloqueColorItem(index),
-                  )),
-              _buildPaginacionVisual(visibles),
-              _buildBannerOcultas(ocultas),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.palette_outlined),
-                  onPressed: () {
-                    setState(() {
-                      _agregarNuevoBloqueColor();
-                      _paginaActual = 1;
-                    });
-                  },
-                  label: const Text('Agregar Color'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _guardarFilaInventario,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Guardar Inventario'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  calzados.isEmpty
+                      ? const Text('No tienes calzados registrados.')
+                      : _buildDropdownConIconos(calzados),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: ValueKey('total_general_$_cantidadFila'),
+                    initialValue: _cantidadFila.toString(),
+                    readOnly: true,
+                    enabled: false,
+                    style: TextStyle(
+                      color: _cantidadFila > 0
+                          ? Colors.green.shade900
+                          : Colors.black54,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Cantidad Total General (Pares)',
+                      border: const OutlineInputBorder(),
+                      filled: true,
+                      fillColor: _cantidadFila > 0
+                          ? Colors.green.shade100
+                          : Colors.grey.shade200,
+                      disabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _cantidadFila > 0
+                              ? Colors.green.shade400
+                              : Colors.grey.shade400,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const Divider(height: 32),
+                  const Text('Bloques de Color e Inventario',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _buildSeccionFiltros(visibles, totalSubfilas),
+                  const SizedBox(height: 12),
+                  ...indicesPaginados
+                      .map((index) => _buildBloqueColorItem(index)),
+                  _buildPaginacionVisual(visibles),
+                  _buildBannerOcultas(ocultas),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      onPressed: () {
+                        setState(() {
+                          _agregarNuevoBloqueColor();
+                          _paginaActual = 1;
+                        });
+                      },
+                      label: const Text('Agregar Bloque de Color'),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _guardarFilaInventario,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Guardar Inventario por Color'),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/fila_inventario.dart';
 import 'package:zapatito_v2/services/API/tipo_calzado.dart';
 
@@ -26,15 +27,16 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   String? _calzadoId;
   bool _tipoTienePlataforma = false;
   bool _tipoTieneTaco = false;
-  bool _tipoTieneColores = false;
 
   int _cantidadSeriesTotal = 0;
-  // Se inicializa con '0' desde el comienzo
   final TextEditingController _cantidadTotalController =
       TextEditingController(text: '0');
 
   final List<Map<String, dynamic>> _subfilas = [];
   final Map<String, String?> _iconCache = {};
+
+  // Lista de colores dinámicos desde API
+  List<Map<String, dynamic>> _listaColores = [];
 
   // Caché local para carga estática
   List<Map<String, dynamic>> _catalogoCalzados = [];
@@ -65,7 +67,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     '39-40-40-41-42-43': [39, 40, 40, 41, 42, 43],
   };
 
-  // Getter para determinar si hay algún filtro activo
   bool get _estaFiltrado =>
       _filtroSerie != null ||
       _filtroTaco != null ||
@@ -95,7 +96,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     return total;
   }
 
-  /// Recalcula la suma total acumulada de series ingresadas en las subfilas
   void _actualizarTotalSeriesInformativo() {
     int suma = _subfilas.fold(
         0, (total, item) => total + ((item['cantidad'] ?? 0) as int));
@@ -113,9 +113,10 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
       'serie': null,
       'taco': 0,
       'plataforma': null,
-      'colores': ''
+      'id_color': null,
+      'nombre_color': ''
     });
-    _cargarCatalogoEstatico();
+    _cargarDatosIniciales();
   }
 
   @override
@@ -125,14 +126,35 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     super.dispose();
   }
 
+  Future<void> _cargarDatosIniciales() async {
+    await Future.wait([
+      _cargarCatalogoEstatico(),
+      _cargarColores(),
+    ]);
+    if (mounted) {
+      setState(() {
+        _cargandoDatos = false;
+      });
+    }
+  }
+
   Future<void> _cargarCatalogoEstatico() async {
     final calzados =
         await CalzadoService.obtenerPorInventario(widget.inventarioId);
     if (mounted) {
-      setState(() {
-        _catalogoCalzados = calzados;
-        _cargandoDatos = false;
-      });
+      _catalogoCalzados = calzados;
+    }
+  }
+
+  Future<void> _cargarColores() async {
+    try {
+      final colores = await ColoresService.obtenerPorInventario(
+          widget.inventarioId.toString());
+      if (mounted) {
+        _listaColores = List<Map<String, dynamic>>.from(colores);
+      }
+    } catch (e) {
+      print('Error al cargar la lista de colores: $e');
     }
   }
 
@@ -150,7 +172,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   }
 
   Future<void> _guardarInventarioSerie() async {
-    // 1. Validar selección de calzado
     if (_calzadoId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, selecciona un calzado')),
@@ -158,7 +179,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
       return;
     }
 
-// 2. Validar cantidad de series
     if (_cantidadSeriesTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -170,7 +190,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
     final combinaciones = <String>{};
     for (var sub in _subfilas) {
       final key =
-          '${sub['serie']}_${sub['taco']}_${sub['plataforma']}_${sub['colores']}';
+          '${sub['serie']}_${sub['taco']}_${sub['plataforma']}_${sub['id_color']}';
       if ((sub['cantidad'] ?? 0) <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -196,8 +216,9 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
         );
         return;
       }
-      if (_tipoTieneColores &&
-          (sub['colores'] == null || sub['colores'].toString().isEmpty)) {
+      if (sub['id_color'] == null &&
+          (sub['nombre_color'] == null ||
+              sub['nombre_color'].toString().trim().isEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content:
@@ -228,11 +249,13 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
 
         String plataforma =
             _tipoTienePlataforma ? (sub['plataforma'] ?? "0") : "0";
-        String color = _tipoTieneColores ? (sub['colores'] ?? "0") : "0";
+        String colorVal = sub['id_color']?.toString() ??
+            sub['nombre_color']?.toString().trim() ??
+            "0";
 
         List<int> tallas = seriesMap[serie]!;
         for (var talla in tallas) {
-          String key = '${talla}_${taco}_${plataforma}_$color';
+          String key = '${talla}_${taco}_${plataforma}_$colorVal';
           acumulado[key] = (acumulado[key] ?? 0) + cantidadSerie;
         }
       }
@@ -251,7 +274,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
           'talla': talla,
           'taco': _tipoTieneTaco ? taco : 0,
           'plataforma': _tipoTienePlataforma ? plataforma : "0",
-          'colores': _tipoTieneColores ? color : "0",
+          'colores': color,
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_usuario': widget.emailUser ?? 'anon',
         });
@@ -422,11 +445,10 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
               ],
             ],
           ),
-          if (_tipoTienePlataforma || _tipoTieneColores)
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
           Row(
             children: [
-              if (_tipoTienePlataforma)
+              if (_tipoTienePlataforma) ...[
                 Expanded(
                   child: DropdownButtonFormField<String?>(
                     decoration: const InputDecoration(
@@ -449,23 +471,53 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                     }),
                   ),
                 ),
-              if (_tipoTienePlataforma && _tipoTieneColores)
                 const SizedBox(width: 8),
-              if (_tipoTieneColores)
-                Expanded(
-                  child: TextFormField(
-                    controller: _filtroColorController,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar Color',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (v) => setState(() {
-                      _filtroColor = v;
+              ],
+              Expanded(
+                child: Autocomplete<Map<String, dynamic>>(
+                  displayStringForOption: (option) =>
+                      option['nombre']?.toString() ?? '',
+                  initialValue: TextEditingValue(text: _filtroColor),
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return _listaColores;
+                    }
+                    return _listaColores.where((col) {
+                      final nombre =
+                          col['nombre']?.toString().toLowerCase() ?? '';
+                      return nombre
+                          .contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  onSelected: (Map<String, dynamic> selection) {
+                    setState(() {
+                      _filtroColor = selection['nombre']?.toString() ?? '';
+                      _filtroColorController.text = _filtroColor;
                       _paginaActual = 1;
-                    }),
-                  ),
+                    });
+                  },
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                    if (_filtroColorController.text != controller.text) {
+                      controller.text = _filtroColorController.text;
+                    }
+                    return TextFormField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Filtrar Color',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.color_lens_outlined),
+                      ),
+                      onChanged: (v) => setState(() {
+                        _filtroColor = v;
+                        _filtroColorController.text = v; // Mantener sincronizado
+                        _paginaActual = 1;
+                      }),
+                    );
+                  },
                 ),
+              ),
             ],
           ),
         ],
@@ -568,18 +620,57 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
-        if (_tipoTieneColores)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: TextFormField(
-              decoration: const InputDecoration(
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Autocomplete<Map<String, dynamic>>(
+            displayStringForOption: (option) =>
+                option['nombre']?.toString() ?? '',
+            initialValue: TextEditingValue(text: sub['nombre_color'] ?? ''),
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return _listaColores;
+              }
+              return _listaColores.where((col) {
+                final nombre = col['nombre']?.toString().toLowerCase() ?? '';
+                return nombre.contains(textEditingValue.text.toLowerCase());
+              });
+            },
+            onSelected: (Map<String, dynamic> selection) {
+              setState(() {
+                _subfilas[index]['id_color'] =
+                    selection['id_color'] ?? selection['id'];
+                _subfilas[index]['nombre_color'] =
+                    selection['nombre']?.toString() ?? '';
+              });
+            },
+            fieldViewBuilder:
+                (context, controller, focusNode, onFieldSubmitted) {
+              return TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
                   labelText: 'Color',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.color_lens_outlined)),
-              initialValue: sub['colores'] ?? '',
-              onChanged: (v) => setState(() => _subfilas[index]['colores'] = v),
-            ),
+                  prefixIcon: Icon(Icons.color_lens_outlined),
+                ),
+                onChanged: (v) {
+                  setState(() {
+                    _subfilas[index]['nombre_color'] = v;
+                    final coincidencia = _listaColores.firstWhere(
+                      (c) =>
+                          c['nombre']?.toString().toLowerCase() ==
+                          v.trim().toLowerCase(),
+                      orElse: () => {},
+                    );
+                    _subfilas[index]['id_color'] = coincidencia.isNotEmpty
+                        ? (coincidencia['id_color'] ?? coincidencia['id'])
+                        : null;
+                  });
+                },
+              );
+            },
           ),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -722,7 +813,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
             setState(() {
               _tipoTieneTaco = calzadoData['taco'] ?? true;
               _tipoTienePlataforma = calzadoData['plataforma'] ?? true;
-              _tipoTieneColores = calzadoData['colores'] ?? true;
             });
           }
         }
@@ -745,9 +835,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
       final bool coincidePlataforma = !_tipoTienePlataforma ||
           _filtroPlataforma == null ||
           sub['plataforma'] == _filtroPlataforma;
-      final bool coincideColor = !_tipoTieneColores ||
-          _filtroColor.trim().isEmpty ||
-          (sub['colores'] ?? '')
+      final bool coincideColor = _filtroColor.trim().isEmpty ||
+          (sub['nombre_color'] ?? '')
               .toString()
               .toLowerCase()
               .contains(_filtroColor.trim().toLowerCase());
@@ -788,7 +877,6 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                   : _buildDropdownConIconos(),
               const SizedBox(height: 12),
               TextFormField(
-                // Multiplicamos la cantidad de series por 6
                 controller: TextEditingController(
                   text: (_cantidadSeriesTotal * 6).toString(),
                 ),
@@ -801,8 +889,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: InputDecoration(
-                  labelText:
-                      'Cantidad total de pares (6 por serie)', // O la etiqueta que prefieras
+                  labelText: 'Cantidad total de pares (6 por serie)',
                   border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: _cantidadSeriesTotal > 0
@@ -838,7 +925,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                         'serie': null,
                         'taco': 0,
                         'plataforma': null,
-                        'colores': ''
+                        'id_color': null,
+                        'nombre_color': ''
                       });
                       _paginaActual = 1;
                     });
