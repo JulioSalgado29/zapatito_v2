@@ -10,7 +10,7 @@ class VentaItem {
   int? tallaSeleccionada;
   int? tacoSeleccionado;
   
-  // 🔹 ID del color para el backend
+  // ID del color para el backend
   dynamic colorSeleccionadoId;
   
   String? plataformaSeleccionada;
@@ -22,7 +22,7 @@ class VentaItem {
   List<int> tallasDisponibles = [];
   List<int> tacosDisponibles = [];
   
-  // 🔹 Estructura de mapas para guardar ID y Nombre del color
+  // Estructura de mapas para guardar ID y Nombre del color
   List<Map<String, dynamic>> coloresDisponibles = [];
   
   List<String> plataformasDisponibles = [];
@@ -203,11 +203,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           idCalzado: item.calzadoId,
           idInventario: widget.inventarioId!,
           talla: item.tallaSeleccionada,
-          colores: item.colorSeleccionadoId, // 🔹 Se envía el ID al backend
+          colores: item.colorSeleccionadoId,
           taco: item.tacoSeleccionado,
           plataforma: item.plataformaSeleccionada);
-
-      print('Datos recibidos para stock cascada: $data');
 
       if (data != null && mounted) {
         setState(() {
@@ -216,31 +214,31 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
           final rawCalzados =
               data['calzados_disponibles'] ?? data['calzados'] ?? [];
+          
           item.calzadosDisponibles = List<int>.from(
             (rawCalzados as List)
                 .map((c) => int.tryParse(c.toString()) ?? 0)
                 .where((c) => c > 0),
           );
 
-          final rawTallas = data['tallas_disponibles'];
-
-          if (item.calzadoId != null && rawTallas == null) {
-            item.tallasDisponibles = [];
-            item.tallaSeleccionada = null;
-          } else {
-            final listaBase = rawTallas ?? data['tallas'] ?? [];
+          // 🔹 Actualización garantizada de tallas
+          final rawTallas = data['tallas_disponibles'] ?? data['tallas'];
+          if (rawTallas != null && rawTallas is List) {
             item.tallasDisponibles = List<int>.from(
-              (listaBase as List)
+              rawTallas
                   .map((t) => int.tryParse(t.toString()) ?? 0)
                   .where((t) => t > 0),
             );
-
-            if (item.tallasDisponibles.isEmpty) {
-              item.tallaSeleccionada = null;
-            }
+          } else {
+            item.tallasDisponibles.clear();
           }
 
-          // 🔹 Mapeo emparejando la lista de IDs con la lista de Nombres
+          if (item.tallaSeleccionada != null &&
+              item.tallasDisponibles.isNotEmpty &&
+              !item.tallasDisponibles.contains(item.tallaSeleccionada)) {
+            item.tallaSeleccionada = null;
+          }
+
           final rawIdsColores = data['colores_disponibles'] ?? data['colores'] ?? [];
           final rawNombresColores = data['nombres_colores_disponibles'] ?? [];
 
@@ -382,44 +380,42 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     final item = _itemsVenta[index];
 
-    List<dynamic> calzadosFiltrados = _listaCalzados;
+    List<Map<String, dynamic>> calzadosFiltrados = _listaCalzados;
 
-    if (item.tallaSeleccionada != null) {
-      if (item.calzadosDisponibles.isNotEmpty) {
-        calzadosFiltrados = _listaCalzados.where((c) {
-          final id = int.tryParse(c['id_calzado'].toString());
-          return item.calzadosDisponibles.contains(id);
-        }).toList();
-      }
+    if (item.tallaSeleccionada != null && item.calzadosDisponibles.isNotEmpty) {
+      calzadosFiltrados = _listaCalzados.where((c) {
+        final id = int.tryParse(c['id_calzado'].toString());
+        return id != null && item.calzadosDisponibles.contains(id);
+      }).toList();
     }
 
     Map<String, dynamic>? calzadoSeleccionado;
     if (item.calzadoId != null) {
-      final encontrado = calzadosFiltrados.firstWhere(
+      final encontrado = _listaCalzados.firstWhere(
         (c) => c['id_calzado'].toString() == item.calzadoId,
         orElse: () => <String, dynamic>{},
       );
-      
+
       if (encontrado.isNotEmpty) {
-        calzadoSeleccionado = encontrado as Map<String, dynamic>;
+        calzadoSeleccionado = encontrado;
       }
     }
 
     final String? iconoSeleccionado = calzadoSeleccionado?['icono'];
 
     return Autocomplete<Map<String, dynamic>>(
+      key: ValueKey('autocomplete_${index}_${item.calzadosDisponibles.join("_")}'),
+      initialValue: TextEditingValue(text: item.calzadoController.text),
       displayStringForOption: (Map<String, dynamic> option) =>
           option['nombre'] ?? 'S/N',
       optionsBuilder: (TextEditingValue textEditingValue) {
         if (textEditingValue.text.isEmpty) {
-          return calzadosFiltrados.cast<Map<String, dynamic>>();
+          return calzadosFiltrados;
         }
-        return calzadosFiltrados
-            .where((c) {
-              final nombre = (c['nombre'] ?? '').toString().toLowerCase();
-              return nombre.contains(textEditingValue.text.toLowerCase());
-            })
-            .cast<Map<String, dynamic>>();
+        return calzadosFiltrados.where((c) {
+          final nombre = (c['nombre'] ?? '').toString().toLowerCase();
+          return nombre.contains(textEditingValue.text.toLowerCase());
+        });
       },
       onSelected: (Map<String, dynamic> calzadoSel) {
         final v = calzadoSel['id_calzado'].toString();
@@ -440,8 +436,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         _actualizarStockCascada(index);
       },
       fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-        if (item.calzadoId == null && item.calzadoController.text.isEmpty && controller.text.isNotEmpty) {
-          controller.clear();
+        if (controller.text != item.calzadoController.text) {
+          controller.text = item.calzadoController.text;
         }
 
         return TextFormField(
@@ -523,31 +519,44 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
       },
     );
   }
-  
+
   Widget _buildDropdownTalla(int index) {
     var item = _itemsVenta[index];
 
-    final listadoTallas =
-        item.calzadoId != null ? item.tallasDisponibles : _tallasInventario;
+    // 🔹 Si hay un calzado seleccionado y el backend ya devolvió respuesta,
+    // se usan 'tallasDisponibles'. De lo contrario, se cargan las tallas del inventario.
+    final List<int> listadoTallas;
+    if (item.calzadoId != null) {
+      listadoTallas = item.tallasDisponibles;
+    } else {
+      listadoTallas = _tallasInventario;
+    }
 
-    final estaHabilitado = listadoTallas.isNotEmpty;
+    final bool estaHabilitado = listadoTallas.isNotEmpty;
+
+    final int? valorValido = (item.tallaSeleccionada != null &&
+            listadoTallas.contains(item.tallaSeleccionada))
+        ? item.tallaSeleccionada
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: DropdownButtonFormField<int>(
+        // 🔹 Se fuerza la reconstrucción cuando cambian las opciones disponibles
+        key: ValueKey('talla_dropdown_${index}_${item.calzadoId}_${listadoTallas.join("_")}'),
         decoration: InputDecoration(
           labelText: 'Talla',
           border: const OutlineInputBorder(),
-          hintText: item.calzadoId != null && listadoTallas.isEmpty
-              ? 'Sin tallas disponibles'
+          hintText: !estaHabilitado
+              ? (item.calzadoId != null
+                  ? 'Sin stock para este calzado'
+                  : 'Sin tallas disponibles')
               : 'Seleccione talla',
         ),
-        value: listadoTallas.contains(item.tallaSeleccionada)
-            ? item.tallaSeleccionada
-            : null,
+        value: valorValido,
         onChanged: estaHabilitado
             ? (v) {
-                if (v == null) return;
+                if (v == null || v == item.tallaSeleccionada) return;
                 setState(() {
                   item.tallaSeleccionada = v;
                   item.colorSeleccionadoId = null;
@@ -560,7 +569,10 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
               }
             : null,
         items: listadoTallas
-            .map((t) => DropdownMenuItem(value: t, child: Text(t.toString())))
+            .map((t) => DropdownMenuItem<int>(
+                  value: t,
+                  child: Text(t.toString()),
+                ))
             .toList(),
       ),
     );
@@ -575,7 +587,6 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
       return const SizedBox();
     }
 
-    // 🔹 Verificar que el ID seleccionado continúe presente en la nueva respuesta
     bool idExiste = item.coloresDisponibles
         .any((c) => c['id'].toString() == item.colorSeleccionadoId?.toString());
 
@@ -591,20 +602,20 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         value: item.colorSeleccionadoId,
         items: item.coloresDisponibles
             .map((c) => DropdownMenuItem<dynamic>(
-                  value: c['id'], // 🔹 El valor interno es el ID
-                  child: Text(c['nombre'].toString()), // 🔹 Lo que ve el usuario es el nombre
+                  value: c['id'],
+                  child: Text(c['nombre'].toString()),
                 ))
             .toList(),
         onChanged: (v) {
           if (v == null) return;
           setState(() {
-            item.colorSeleccionadoId = v; // 🔹 Almacena el ID seleccionado
+            item.colorSeleccionadoId = v;
             item.tacoSeleccionado = null;
             item.plataformaSeleccionada = null;
             item.cantidadVenta = 0;
             item.cantidadController.clear();
           });
-          _actualizarStockCascada(index); // 🔹 Dispara la consulta al backend con el ID
+          _actualizarStockCascada(index);
         },
       ),
     );
