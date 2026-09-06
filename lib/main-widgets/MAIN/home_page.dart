@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/main-widgets/CALZADO/calzado_page.dart';
+import 'package:zapatito_v2/main-widgets/COLORES/colores_page.dart';
 import 'package:zapatito_v2/main-widgets/DUENO_MUESTRA/dueno_muestra_page.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_page.dart';
 import 'package:zapatito_v2/main-widgets/TIPO_CALZADO/tipo_calzado_page.dart';
@@ -98,6 +99,15 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 30),
+                  if (isAdmin || isAlmacenero)
+                    _buildMenuButton(
+                      context,
+                      label: 'Colores',
+                      page: ColoresPage(
+                          firstName: firstName,
+                          emailUser: emailUser,
+                          inventarioId: inventarioId),
+                    ),
                   if (isAdmin || isAlmacenero)
                     _buildMenuButton(
                       context,

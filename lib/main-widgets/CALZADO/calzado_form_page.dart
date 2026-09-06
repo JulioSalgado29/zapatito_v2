@@ -6,7 +6,23 @@ import 'package:image_picker/image_picker.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/tipo_calzado.dart';
+
+// Modelo para asociar imagen local o remota con su respectivo color
+class ImagenColorItem {
+  File? fileLocal;
+  String? urlRemota;
+  String color;
+
+  ImagenColorItem({
+    this.fileLocal,
+    this.urlRemota,
+    required this.color,
+  });
+
+  bool get esRemota => urlRemota != null;
+}
 
 class CalzadoFormPage extends StatefulWidget {
   final String? firstName;
@@ -35,9 +51,12 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
   final _precioController = TextEditingController();
   String? _selectedTipoCalzadoId;
 
-  // Manejo de multiples imagenes (hasta 25)
-  final List<File> _imagenesSeleccionadas = [];
-  final List<String> _imageUrlsRemotas = []; // Para URLs existentes en edicion
+  // Lista unificada de imágenes asociadas a color
+  final List<ImagenColorItem> _listaImagenesColor = [];
+
+  // Lista dinámicamente cargada de colores por inventario
+  List<String> _coloresDisponibles = [];
+  bool _cargandoColores = true;
 
   bool _taco = false;
   bool _plataforma = false;
@@ -54,12 +73,41 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
   @override
   void initState() {
     super.initState();
+    _cargarColoresInventario();
+    _nombreController.addListener(_validarFormulario);
+    _precioController.addListener(_validarFormulario);
+  }
 
+  Future<void> _cargarColoresInventario() async {
+    try {
+      if (widget.inventarioId != null && widget.inventarioId!.isNotEmpty) {
+        final listaColoresMap =
+            await ColoresService.obtenerPorInventario(widget.inventarioId!);
+        
+        final listaNombres = listaColoresMap
+            .map((item) => item['nombre']?.toString().trim() ?? '')
+            .where((nombre) => nombre.isNotEmpty)
+            .toList();
+
+        setState(() {
+          _coloresDisponibles = listaNombres;
+          _cargandoColores = false;
+        });
+      } else {
+        setState(() => _cargandoColores = false);
+      }
+    } catch (_) {
+      setState(() => _cargandoColores = false);
+    }
+
+    _inicializarDatosFormulario();
+  }
+
+  void _inicializarDatosFormulario() {
     if (isEditing) {
       final data = widget.calzado!;
 
-      // Limpiar la lista para asegurar un estado inicial limpio
-      _imageUrlsRemotas.clear();
+      _listaImagenesColor.clear();
 
       _nombreController.text = data['nombre'] ?? '';
       final double precio =
@@ -72,37 +120,47 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
       _coloresCheckbox = data['colores'] ?? false;
       _iconoSeleccionado = data['icono'] ?? '';
 
-      // --- CARGA Y PARSEO ÚNICO Y SEGURO DE IMÁGENES REMOTAS ---
+      // --- CARGA Y PARSEO DE IMÁGENES REMOTAS ---
       final rawImagenes =
           data['imagenes'] ?? data['imagen_url'] ?? data['imagen'];
 
       if (rawImagenes != null) {
+        List<String> urlsTemp = [];
         if (rawImagenes is List) {
-          final urlsUnicas = rawImagenes
+          urlsTemp = rawImagenes
               .map((e) => e.toString().trim())
               .where((e) => e.isNotEmpty)
-              .toSet();
-
-          _imageUrlsRemotas.addAll(urlsUnicas);
+              .toList();
         } else if (rawImagenes is String &&
             rawImagenes.trim().startsWith('[')) {
           try {
             final List<dynamic> parsed = jsonDecode(rawImagenes);
-            final urlsUnicas = parsed
+            urlsTemp = parsed
                 .map((e) => e.toString().trim())
                 .where((e) => e.isNotEmpty)
-                .toSet();
-
-            _imageUrlsRemotas.addAll(urlsUnicas);
+                .toList();
           } catch (_) {}
         } else if (rawImagenes is String && rawImagenes.trim().isNotEmpty) {
-          _imageUrlsRemotas.add(rawImagenes.trim());
+          urlsTemp.add(rawImagenes.trim());
+        }
+
+        for (final url in urlsTemp.toSet()) {
+          String colorInferido = 'General';
+          for (final color in _coloresDisponibles) {
+            if (url.toLowerCase().contains(color.toLowerCase())) {
+              colorInferido = color;
+              break;
+            }
+          }
+          _listaImagenesColor.add(
+            ImagenColorItem(
+              urlRemota: url,
+              color: colorInferido,
+            ),
+          );
         }
       }
     }
-
-    _nombreController.addListener(_validarFormulario);
-    _precioController.addListener(_validarFormulario);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _validarFormulario();
@@ -122,57 +180,146 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     });
   }
 
-  // Seleccionar multiples imagenes de la galeria (Limite: 25)
-  Future<void> _seleccionarImagenes() async {
-    final int imagenesActuales =
-        _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
-    if (imagenesActuales >= 25) {
+  // Seleccionar una imagen asociando un color filtrable mediante búsqueda desplegable
+  Future<void> _seleccionarImagenConColor() async {
+    if (_coloresDisponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content:
-                Text('Ya se ha alcanzado el limite maximo de 25 imagenes.')),
+          content: Text('No hay colores disponibles para este inventario.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
       );
       return;
     }
 
+    final colorTextController = TextEditingController();
+
+    final colorConfirmado = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Buscar y Seleccionar Color'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: RawAutocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return _coloresDisponibles;
+                }
+                return _coloresDisponibles.where((option) => option
+                    .toLowerCase()
+                    .contains(textEditingValue.text.toLowerCase()));
+              },
+              fieldViewBuilder: (
+                BuildContext context,
+                TextEditingController textEditingController,
+                FocusNode focusNode,
+                VoidCallback onFieldSubmitted,
+              ) {
+                return TextField(
+                  controller: textEditingController,
+                  focusNode: focusNode,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Escriba o seleccione un color',
+                    prefixIcon: Icon(Icons.palette),
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) {
+                    colorTextController.text = val;
+                  },
+                );
+              },
+              optionsViewBuilder: (
+                BuildContext context,
+                AutocompleteOnSelected<String> onSelected,
+                Iterable<String> options,
+              ) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200, maxWidth: 280),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final option = options.elementAt(index);
+                          return ListTile(
+                            title: Text(option),
+                            onTap: () {
+                              onSelected(option);
+                              colorTextController.text = option;
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+              onSelected: (String selection) {
+                colorTextController.text = selection;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final colorElegido = colorTextController.text.trim();
+                if (colorElegido.isNotEmpty) {
+                  Navigator.pop(context, colorElegido);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Por favor, busque o seleccione un color.'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Continuar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (colorConfirmado == null || colorConfirmado.isEmpty) return;
+
     final ImagePicker picker = ImagePicker();
-    final List<XFile> imagenes = await picker.pickMultiImage(
+    final XFile? imagen = await picker.pickImage(
+      source: ImageSource.gallery,
       imageQuality: 80,
     );
 
-    if (imagenes.isNotEmpty) {
-      final int espacioDisponible = 25 - imagenesActuales;
-      final imagenesNuevas =
-          imagenes.take(espacioDisponible).map((x) => File(x.path)).toList();
-
-      if (imagenes.length > espacioDisponible) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Solo se agregaron $espacioDisponible imagenes para no superar el limite de 25.'),
-            ),
-          );
-        }
-      }
-
+    if (imagen != null) {
       setState(() {
-        _imagenesSeleccionadas.addAll(imagenesNuevas);
+        // REGLA: Si ya existe una foto para este color, la eliminamos primero
+        _listaImagenesColor.removeWhere(
+          (item) => item.color.toLowerCase() == colorConfirmado.toLowerCase(),
+        );
+
+        // Agregamos la nueva foto asociada al color
+        _listaImagenesColor.add(
+          ImagenColorItem(
+            fileLocal: File(imagen.path),
+            color: colorConfirmado,
+          ),
+        );
       });
       _validarFormulario();
     }
   }
 
-  void _eliminarImagenLocal(int index) {
+  void _eliminarImagen(int index) {
     setState(() {
-      _imagenesSeleccionadas.removeAt(index);
-    });
-    _validarFormulario();
-  }
-
-  void _eliminarImagenRemota(int index) {
-    setState(() {
-      _imageUrlsRemotas.removeAt(index);
+      _listaImagenesColor.removeAt(index);
     });
     _validarFormulario();
   }
@@ -196,7 +343,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     if (valor == null || valor.isEmpty) return 'Ingrese un precio';
     final precioText = valor.replaceAll("S/", "").trim();
     final precio = double.tryParse(precioText);
-    if (precio == null) return 'Ingrese solo numeros validos';
+    if (precio == null) return 'Ingrese solo números válidos';
     if (precio > 150) return 'No puede superar el precio de S/ 150';
     return null;
   }
@@ -239,28 +386,35 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
     final double precioReal = double.parse(precio.toStringAsFixed(2));
     final String nombre = _nombreController.text.trim();
     try {
-      final List<String> urlsFinales = List.from(_imageUrlsRemotas);
+      final List<String> urlsFinales = [];
 
-      // Subida de cada imagen seleccionada localmente a S3 mediante Presigned URLs
-      for (final imagenFile in _imagenesSeleccionadas) {
-        final ext = imagenFile.path.split('.').last;
-        final presignedData = await CalzadoService.obtenerPresignedUrl(
-            idInventario: widget.inventarioId, nombre: nombre, extension: ext);
-        if (presignedData != null && presignedData.containsKey('uploadUrl')) {
-          final bool exitoSubida = await CalzadoService.subirImagenAS3(
-            uploadUrl: presignedData['uploadUrl']!,
-            file: imagenFile,
+      for (final item in _listaImagenesColor) {
+        if (item.esRemota) {
+          urlsFinales.add(item.urlRemota!);
+        } else if (item.fileLocal != null) {
+          final ext = item.fileLocal!.path.split('.').last;
+          final rutaConColor = "$nombre/${item.color.toLowerCase()}";
+
+          final presignedData = await CalzadoService.obtenerPresignedUrl(
+            idInventario: widget.inventarioId,
+            nombre: rutaConColor,
+            extension: ext,
           );
-          if (exitoSubida) {
-            urlsFinales.add(presignedData['fileUrl']!);
+
+          if (presignedData != null && presignedData.containsKey('uploadUrl')) {
+            final bool exitoSubida = await CalzadoService.subirImagenAS3(
+              uploadUrl: presignedData['uploadUrl']!,
+              file: item.fileLocal!,
+            );
+            if (exitoSubida) {
+              urlsFinales.add(presignedData['fileUrl']!);
+            }
           }
         }
       }
 
-      // Filtrar explícitamente duplicados antes de enviar la lista final al backend
       final List<String> urlsLimpias = urlsFinales.toSet().toList();
 
-      // Guardar registro en la Base de Datos con las URLs generadas
       final bool exito = isEditing
           ? await CalzadoService.actualizar(
               id: (widget.calzado!['id_calzado'] ?? widget.calzado!['id'])
@@ -298,8 +452,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             SnackBar(
               content: Text(
                 isEditing
-                    ? 'Codigo actualizado correctamente'
-                    : 'Codigo agregado correctamente',
+                    ? 'Código actualizado correctamente'
+                    : 'Código agregado correctamente',
               ),
             ),
           );
@@ -313,8 +467,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             SnackBar(
               content: Text(
                 isEditing
-                    ? 'Error al actualizar el codigo'
-                    : 'Error al agregar el codigo',
+                    ? 'Error al actualizar el código'
+                    : 'Error al agregar el código',
               ),
             ),
           );
@@ -332,12 +486,19 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final int totalImagenes =
-        _imagenesSeleccionadas.length + _imageUrlsRemotas.length;
+    if (_cargandoColores) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final int totalImagenes = _listaImagenesColor.length;
 
     return Scaffold(
       appBar: Designwidgets().appBarMain(
-        isEditing ? "Editar Codigo" : "Agregar Codigo",
+        isEditing ? "Editar Código" : "Agregar Código",
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20)
@@ -350,66 +511,65 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Encabezado del visor de imagenes
+                // Encabezado del visor de imágenes
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Imagenes ($totalImagenes/25)',
+                      'Imágenes por Color ($totalImagenes)',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (totalImagenes < 25)
-                      TextButton.icon(
-                        onPressed: _seleccionarImagenes,
-                        icon: const Icon(Icons.add_a_photo_outlined, size: 20),
-                        label: const Text('Agregar fotos'),
-                      ),
+                    TextButton.icon(
+                      onPressed: _seleccionarImagenConColor,
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+                      label: const Text('Agregar foto'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
 
-                // Galeria horizontal de fotos seleccionadas
+                // Galería horizontal de fotos seleccionadas
                 SizedBox(
                   height: 110,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
                     children: [
-                      // Boton para seleccionar mas imagenes
-                      if (totalImagenes < 25)
-                        GestureDetector(
-                          onTap: _seleccionarImagenes,
-                          child: Container(
-                            width: 100,
-                            height: 100,
-                            margin: const EdgeInsets.only(right: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: Colors.grey.shade300, width: 2),
-                            ),
-                            child: const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo_outlined,
-                                    color: Colors.grey, size: 28),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Subir',
-                                  style: TextStyle(
-                                      color: Colors.grey, fontSize: 12),
-                                ),
-                              ],
-                            ),
+                      // Botón para seleccionar imagen
+                      GestureDetector(
+                        onTap: _seleccionarImagenConColor,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: Colors.grey.shade300, width: 2),
+                          ),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_a_photo_outlined,
+                                  color: Colors.grey, size: 28),
+                              SizedBox(height: 4),
+                              Text(
+                                'Subir',
+                                style: TextStyle(
+                                    color: Colors.grey, fontSize: 12),
+                              ),
+                            ],
                           ),
                         ),
+                      ),
 
-                      // Listado de imagenes remotas (en edicion)
-                      ...List.generate(_imageUrlsRemotas.length, (index) {
+                      // Lista unificada de fotos con tag de color (1 foto por color)
+                      ...List.generate(_listaImagenesColor.length, (index) {
+                        final item = _listaImagenesColor[index];
                         return Stack(
                           children: [
                             Container(
@@ -420,56 +580,42 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade300),
                                 image: DecorationImage(
-                                  image: NetworkImage(
-                                    Uri.encodeFull(_imageUrlsRemotas[index]),
-                                  ),
+                                  image: item.esRemota
+                                      ? NetworkImage(
+                                          Uri.encodeFull(item.urlRemota!))
+                                      : FileImage(item.fileLocal!)
+                                          as ImageProvider,
                                   fit: BoxFit.cover,
                                 ),
                               ),
                             ),
+                            // Tag con el nombre del color
                             Positioned(
-                              top: 2,
-                              right: 12,
-                              child: GestureDetector(
-                                onTap: () => _eliminarImagenRemota(index),
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
+                              bottom: 4,
+                              left: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  item.color,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  child: const Icon(Icons.close,
-                                      color: Colors.white, size: 14),
                                 ),
                               ),
                             ),
-                          ],
-                        );
-                      }),
-
-                      // Listado de nuevas imagenes locales seleccionadas
-                      ...List.generate(_imagenesSeleccionadas.length, (index) {
-                        return Stack(
-                          children: [
-                            Container(
-                              width: 100,
-                              height: 100,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                                image: DecorationImage(
-                                  image:
-                                      FileImage(_imagenesSeleccionadas[index]),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
+                            // Botón de eliminar
                             Positioned(
                               top: 2,
                               right: 12,
                               child: GestureDetector(
-                                onTap: () => _eliminarImagenLocal(index),
+                                onTap: () => _eliminarImagen(index),
                                 child: Container(
                                   padding: const EdgeInsets.all(3),
                                   decoration: const BoxDecoration(
@@ -715,14 +861,14 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
                 const SizedBox(height: 16),
 
-                // Boton Guardar / Actualizar
+                // Botón Guardar / Actualizar
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _isFormValid ? _guardarCalzado : null,
                     icon: Icon(isEditing ? Icons.save_as : Icons.save),
                     label: Text(
-                      isEditing ? 'Actualizar Codigo' : 'Guardar Codigo',
+                      isEditing ? 'Actualizar Código' : 'Guardar Código',
                     ),
                   ),
                 ),
