@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.juliosalgado.zapatito_v2"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
