@@ -60,10 +60,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
   bool _taco = false;
   bool _plataforma = false;
-  bool _colores = false;
   bool _tacoCheckbox = false;
   bool _plataformaCheckbox = false;
-  bool _coloresCheckbox = false;
   String? _iconoSeleccionado;
 
   bool get isEditing => widget.calzado != null;
@@ -117,7 +115,6 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
           (data['id_tipo_calzado'] ?? data['tipo_calzado_id'])?.toString();
       _tacoCheckbox = data['taco'] ?? false;
       _plataformaCheckbox = data['plataforma'] ?? false;
-      _coloresCheckbox = data['colores'] ?? false;
       _iconoSeleccionado = data['icono'] ?? '';
 
       // --- CARGA Y PARSEO DE IMÁGENES REMOTAS ---
@@ -144,14 +141,46 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
           urlsTemp.add(rawImagenes.trim());
         }
 
+        // Ordenamos colores disponibles por longitud descendente para evitar falsas coincidencias
+        // Ej: "Blanco Hueso" se evalúa antes que "Blanco"
+        final coloresOrdenados = List<String>.from(_coloresDisponibles)
+          ..sort((a, b) => b.length.compareTo(a.length));
+
+        // Mantenemos un registro de colores que ya asignamos a una foto
+        final Set<String> coloresYaAsignados = {};
+
         for (final url in urlsTemp.toSet()) {
-          String colorInferido = 'General';
-          for (final color in _coloresDisponibles) {
-            if (url.toLowerCase().contains(color.toLowerCase())) {
+          String? colorInferido;
+
+          // Decodificamos la URL para manejar espacios o caracteres especiales (%20, etc.)
+          final urlDecodificada = Uri.decodeFull(url).toLowerCase();
+
+          // 1. Intentamos buscar si la URL contiene de forma única algún color no asignado aún
+          for (final color in coloresOrdenados) {
+            final colorLower = color.toLowerCase();
+            if (!coloresYaAsignados.contains(colorLower) &&
+                urlDecodificada.contains(colorLower)) {
               colorInferido = color;
+              coloresYaAsignados.add(colorLower);
               break;
             }
           }
+
+          // 2. Si no hubo coincidencia por la URL, asignamos el primer color disponible que aún no tenga foto
+          if (colorInferido == null) {
+            for (final color in _coloresDisponibles) {
+              final colorLower = color.toLowerCase();
+              if (!coloresYaAsignados.contains(colorLower)) {
+                colorInferido = color;
+                coloresYaAsignados.add(colorLower);
+                break;
+              }
+            }
+          }
+
+          // 3. Si aún así no hay colores libres, usamos 'General' o el nombre del color
+          colorInferido ??= 'General';
+
           _listaImagenesColor.add(
             ImagenColorItem(
               urlRemota: url,
@@ -173,19 +202,36 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
           setState(() {
             _taco = data['taco'] ?? false;
             _plataforma = data['plataforma'] ?? false;
-            _colores = data['colores'] ?? false;
           });
         }
       }
     });
   }
-
+  
   // Seleccionar una imagen asociando un color filtrable mediante búsqueda desplegable
   Future<void> _seleccionarImagenConColor() async {
     if (_coloresDisponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No hay colores disponibles para este inventario.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    // Filtrar los colores para excluir los que YA fueron agregados
+    final coloresOcupados =
+        _listaImagenesColor.map((e) => e.color.toLowerCase()).toSet();
+
+    final coloresFiltradosDisponibles = _coloresDisponibles
+        .where((color) => !coloresOcupados.contains(color.toLowerCase()))
+        .toList();
+
+    if (coloresFiltradosDisponibles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ya has registrado imágenes para todos los colores disponibles.'),
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -204,9 +250,9 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
             child: RawAutocomplete<String>(
               optionsBuilder: (TextEditingValue textEditingValue) {
                 if (textEditingValue.text.isEmpty) {
-                  return _coloresDisponibles;
+                  return coloresFiltradosDisponibles;
                 }
-                return _coloresDisponibles.where((option) => option
+                return coloresFiltradosDisponibles.where((option) => option
                     .toLowerCase()
                     .contains(textEditingValue.text.toLowerCase()));
               },
@@ -240,7 +286,8 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                   child: Material(
                     elevation: 4,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200, maxWidth: 280),
+                      constraints:
+                          const BoxConstraints(maxHeight: 200, maxWidth: 280),
                       child: ListView.builder(
                         padding: EdgeInsets.zero,
                         shrinkWrap: true,
@@ -300,7 +347,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
     if (imagen != null) {
       setState(() {
-        // REGLA: Si ya existe una foto para este color, la eliminamos primero
+        // Por precaución removemos por si ya existía
         _listaImagenesColor.removeWhere(
           (item) => item.color.toLowerCase() == colorConfirmado.toLowerCase(),
         );
@@ -424,7 +471,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
               precioReal: precioReal,
               taco: _tacoCheckbox,
               plataforma: _plataformaCheckbox,
-              colores: _coloresCheckbox,
+              colores: true,
               idTipoCalzado: _selectedTipoCalzadoId,
               usuarioCreacion: widget.firstName,
               emailUsuario: widget.emailUser,
@@ -436,7 +483,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
               precioReal: precioReal,
               taco: _tacoCheckbox,
               plataforma: _plataformaCheckbox,
-              colores: _coloresCheckbox,
+              colores: true,
               idTipoCalzado: _selectedTipoCalzadoId,
               usuarioCreacion: widget.firstName,
               emailUsuario: widget.emailUser,
@@ -758,11 +805,9 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                                 _iconoSeleccionado = tipoData['icono'] ?? '';
                                 _taco = tipoData['taco'] ?? false;
                                 _plataforma = tipoData['plataforma'] ?? false;
-                                _colores = tipoData['colores'] ?? false;
 
                                 if (!_taco) _tacoCheckbox = false;
                                 if (!_plataforma) _plataformaCheckbox = false;
-                                if (!_colores) _coloresCheckbox = false;
                               });
                             }
                           }
@@ -817,7 +862,7 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
 
                 // Taco / Plataforma / Colores
                 if (_selectedTipoCalzadoId != null &&
-                    (_taco || _plataforma || _colores))
+                    (_taco || _plataforma))
                   Column(
                     children: [
                       if (_taco)
@@ -841,18 +886,6 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
                               value: _plataformaCheckbox,
                               onChanged: (val) => setState(
                                   () => _plataformaCheckbox = val ?? false),
-                            ),
-                          ],
-                        ),
-                      if (_colores)
-                        Row(
-                          children: [
-                            const Text('Tiene Colores?',
-                                style: TextStyle(fontSize: 16)),
-                            Checkbox(
-                              value: _coloresCheckbox,
-                              onChanged: (val) => setState(
-                                  () => _coloresCheckbox = val ?? false),
                             ),
                           ],
                         ),

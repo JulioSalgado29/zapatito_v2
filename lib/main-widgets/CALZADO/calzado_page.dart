@@ -518,7 +518,6 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                   data['id_tipo_calzado']?.toString();
                               final taco = data['taco'] ?? false;
                               final plataforma = data['plataforma'] ?? false;
-                              final colores = data['colores'] ?? false;
 
                               final icono = _mapaIconos[tipoId] ?? "❓";
                               final bool mostrarAvisoPrecio = (precio <= 0 &&
@@ -620,10 +619,6 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                       Icons.layers,
                                                       'Plataforma',
                                                       plataforma),
-                                                  _buildFeatureChip(
-                                                      Icons.palette,
-                                                      'Colores',
-                                                      colores),
                                                 ],
                                               ),
                                               const SizedBox(height: 12),

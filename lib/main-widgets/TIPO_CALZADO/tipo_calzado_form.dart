@@ -28,7 +28,6 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
   String? _iconoSeleccionado;
   bool _taco = false;
   bool _plataforma = false;
-  bool _colores = false;
 
   bool get isEditing => widget.itemData != null;
 
@@ -44,7 +43,6 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
       _iconoSeleccionado = data['icono']; // ruta guardada
       _taco = data['taco'] ?? false;
       _plataforma = data['plataforma'] ?? false;
-      _colores = data['colores'] ?? false;
     }
     _cargarIconos();
   }
@@ -107,7 +105,7 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
           emailUsuario: emailUsuario,
           taco: _taco,
           plataforma: _plataforma,
-          colores: _colores,
+          colores: true,
         );
       } else {
         exito = await TipoCalzadoService.crear(
@@ -117,7 +115,7 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
           emailUsuario: emailUsuario,
           taco: _taco,
           plataforma: _plataforma,
-          colores: _colores,
+          colores: true,
           idInventario: idInventario,
         );
       }
@@ -267,15 +265,6 @@ class _TipoCalzadoFormState extends State<TipoCalzadoForm> {
                   onChanged: (value) {
                     setState(() {
                       _plataforma = value;
-                    });
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('¿Puede tener diferentes colores?'),
-                  value: _colores,
-                  onChanged: (value) {
-                    setState(() {
-                      _colores = value;
                     });
                   },
                 ),

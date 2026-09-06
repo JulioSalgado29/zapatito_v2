@@ -409,36 +409,38 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Widget _buildInputFiltro({
-  required TextEditingController controller,
-  required String label,
-  required IconData icon,
-}) {
-  return TextField(
-    controller: controller, // El listener del initState detecta el cambio automáticamente
-    style: const TextStyle(fontSize: 13),
-    decoration: InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(fontSize: 12),
-      prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      isDense: true,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    return TextField(
+      controller:
+          controller, // El listener del initState detecta el cambio automáticamente
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
+        prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+        ),
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-      ),
-    ),
-  );
-}
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.inventarioId == null || _cargando) {
@@ -684,38 +686,40 @@ class _InventarioPageState extends State<InventarioPage> {
           ],
         ),
       ),
-      
       floatingActionButton: widget.isVendedor != true
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                /*
                 _buildFab(
                   Designwidgets().linearGradientBlue(context),
                   "btn1",
-            _abrirFormulario,
-            "Codigo",
-            Icons.add_circle_outline,
-          ),
-          const SizedBox(height: 12),
-          if (tieneCalzadoConColores) ...[
-            _buildFab(
-              Designwidgets().linearGradientPurple(context),
-              "btn2",
-              _abrirFormularioColor,
-              "Color",
-              Icons.add_circle_outline,
-            ),
-            const SizedBox(height: 12),
-          ],
-          _buildFab(
-            Designwidgets().linearGradientFire(context),
-            "btn3",
-            _abrirFormularioSerie,
-            "Por serie",
-            Icons.inventory_2,
-          ),
-        ],
-      ): null,
+                  _abrirFormulario,
+                  "Codigo",
+                  Icons.add_circle_outline,
+                ),
+                */
+                const SizedBox(height: 12),
+                if (tieneCalzadoConColores) ...[
+                  _buildFab(
+                    Designwidgets().linearGradientPurple(context),
+                    "btn2",
+                    _abrirFormularioColor,
+                    "Color",
+                    Icons.add_circle_outline,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _buildFab(
+                  Designwidgets().linearGradientFire(context),
+                  "btn3",
+                  _abrirFormularioSerie,
+                  "Por serie",
+                  Icons.inventory_2,
+                ),
+              ],
+            )
+          : null,
     );
   }
 }

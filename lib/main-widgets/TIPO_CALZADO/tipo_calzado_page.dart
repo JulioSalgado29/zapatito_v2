@@ -227,7 +227,6 @@ class _TipoCalzadoPageState extends State<TipoCalzadoPage> {
                 final usuario = item['usuario_creacion'] ?? '';
                 final taco = item['taco'] ?? false;
                 final plataforma = item['plataforma'] ?? false;
-                final colores = item['colores'] ?? false;
 
                 return Card(
                   elevation: 3,
@@ -265,8 +264,6 @@ class _TipoCalzadoPageState extends State<TipoCalzadoPage> {
                               _buildFeatureChip(Icons.height, 'Taco', taco),
                               _buildFeatureChip(
                                   Icons.layers, 'Plataforma', plataforma),
-                              _buildFeatureChip(
-                                  Icons.palette, 'Colores', colores),
                             ],
                           ),
                           const SizedBox(height: 12),
