@@ -28,21 +28,54 @@ class _VentaPageState extends State<VentaPage> {
   bool _isFetchingVentas = false;
   List<Map<String, dynamic>> _ventas = [];
 
-  // 🔹 Controladores y variables para el Buscador
-  bool _isSearching = false;
+  // 🔹 Controladores y variables para el Buscador y Filtros Ocultos
+  bool _mostrarFiltros = false; // Estado del panel colapsable
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _vendedorController = TextEditingController();
+  final TextEditingController _tiendaController = TextEditingController();
+
   String _searchQuery = '';
+  String _filtroVendedor = '';
+  String _filtroTienda = '';
 
   @override
   void initState() {
     super.initState();
+    _escucharControladores();
     _inicializarPagina();
+  }
+
+  void _escucharControladores() {
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text);
+    });
+    _vendedorController.addListener(() {
+      setState(() => _filtroVendedor = _vendedorController.text);
+    });
+    _tiendaController.addListener(() {
+      setState(() => _filtroTienda = _tiendaController.text);
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _vendedorController.dispose();
+    _tiendaController.dispose();
     super.dispose();
+  }
+
+  void _limpiarFiltros() {
+    setState(() {
+      _vendedorController.clear();
+      _tiendaController.clear();
+      _filtroVendedor = '';
+      _filtroTienda = '';
+    });
+  }
+
+  bool _tieneFiltrosActivos() {
+    return _filtroVendedor.isNotEmpty || _filtroTienda.isNotEmpty;
   }
 
   Future<void> _inicializarPagina() async {
@@ -248,6 +281,38 @@ class _VentaPageState extends State<VentaPage> {
     }
   }
 
+  Widget _buildInputFiltro({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
+        prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+        ),
+      ),
+    );
+  }
+
   Widget _buildContenidoVentas(bool esHoy) {
     if (_isFetchingVentas) {
       return const Center(child: CircularProgressIndicator());
@@ -260,12 +325,30 @@ class _VentaPageState extends State<VentaPage> {
               : 'No hay ventas para esta fecha.'));
     }
 
-    // 🔹 Lógica de Filtro por Buscador sobre la data ya cargada
+    // 🔹 Lógica de Filtro por Buscador y Filtros Secundarios
     final filas = _ventas.where((fila) {
-      if (_searchQuery.isEmpty) return true;
+      // 1. Filtro por nombre de calzado
       final nombreCalzado =
           (fila['calzado_nombre'] ?? '').toString().toLowerCase();
-      return nombreCalzado.contains(_searchQuery);
+      if (!nombreCalzado.contains(_searchQuery.trim().toLowerCase())) {
+        return false;
+      }
+
+      // Si no hay filtros secundarios activos, se aprueba
+      if (!_tieneFiltrosActivos()) return true;
+
+      // 2. Filtro por Vendedor
+      final vendedor =
+          (fila['usuario_creacion'] ?? '').toString().toLowerCase();
+      final bool coincideVendedor = _filtroVendedor.trim().isEmpty ||
+          vendedor.contains(_filtroVendedor.trim().toLowerCase());
+
+      // 3. Filtro por Tienda
+      final tienda = (fila['tienda_nombre'] ?? '').toString().toLowerCase();
+      final bool coincideTienda = _filtroTienda.trim().isEmpty ||
+          tienda.contains(_filtroTienda.trim().toLowerCase());
+
+      return coincideVendedor && coincideTienda;
     }).toList();
 
     if (filas.isEmpty) {
@@ -293,90 +376,197 @@ class _VentaPageState extends State<VentaPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xff5b16c2),
         foregroundColor: Colors.white,
-        leading: _isSearching
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  setState(() {
-                    _isSearching = false;
-                    _searchQuery = '';
-                    _searchController.clear();
-                  });
-                },
-              )
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.pop(context)),
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  hintText: 'Buscar calzado...',
-                  hintStyle: TextStyle(color: Colors.white70),
-                  border: InputBorder.none,
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val.toLowerCase().trim();
-                  });
-                },
-              )
-            : const Text('Ventas',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, fontFamily: 'Georgia')),
+        centerTitle: true,
+        leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context)),
+        title: const Text('Ventas',
+            style:
+                TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Georgia')),
         actions: [
-          if (!_isSearching) ...[
-            IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () => setState(() => _isSearching = true)),
-            IconButton(
-                icon: const Icon(Icons.today),
-                onPressed: () async {
-                  setState(() => _fechaFiltro = DateTime.now());
-                  await _cargarVentas();
-                }),
-            IconButton(
-                icon: const Icon(Icons.calendar_month),
-                onPressed: () => _seleccionarFecha(context)),
-          ] else ...[
-            if (_searchController.text.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  setState(() {
-                    _searchController.clear();
-                    _searchQuery = '';
-                  });
-                },
-              ),
-          ]
+          IconButton(
+              icon: const Icon(Icons.today),
+              onPressed: () async {
+                setState(() => _fechaFiltro = DateTime.now());
+                await _cargarVentas();
+              }),
+          IconButton(
+              icon: const Icon(Icons.calendar_month),
+              onPressed: () => _seleccionarFecha(context)),
         ],
       ),
       drawer:
           Designwidgets().drawerHome(context, widget.firstName ?? "Invitado"),
       body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              color: esHoy ? Colors.green.shade50 : Colors.blue.shade50,
-              child: Text(
-                esHoy
-                    ? 'Ventas de Hoy: ${DateFormat('dd/MM/yyyy').format(_fechaFiltro)}'
-                    : 'Filtrado: ${DateFormat('dd/MM/yyyy').format(_fechaFiltro)}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: esHoy ? Colors.green.shade900 : Colors.blue.shade900,
-                    fontWeight: FontWeight.bold),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: esHoy ? Colors.green.shade50 : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  esHoy
+                      ? 'Ventas de Hoy: ${DateFormat('dd/MM/yyyy').format(_fechaFiltro)}'
+                      : 'Filtrado: ${DateFormat('dd/MM/yyyy').format(_fechaFiltro)}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color:
+                          esHoy ? Colors.green.shade900 : Colors.blue.shade900,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            Expanded(
-              child: _buildContenidoVentas(esHoy),
-            ),
-          ],
+              const SizedBox(height: 10),
+              // Barra superior: Buscador + Botón Alternar Filtros Ocultos
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Buscar calzado...',
+                        prefixIcon:
+                            const Icon(Icons.search, color: Colors.blueAccent),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon:
+                                    const Icon(Icons.clear, color: Colors.grey),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Colors.blueAccent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    style: IconButton.styleFrom(
+                      backgroundColor: _tieneFiltrosActivos()
+                          ? Colors.blueAccent
+                          : Colors.grey.shade200,
+                      foregroundColor: _tieneFiltrosActivos()
+                          ? Colors.white
+                          : Colors.black87,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.all(14),
+                    ),
+                    icon: Icon(_mostrarFiltros
+                        ? Icons.filter_alt_off
+                        : Icons.filter_alt),
+                    onPressed: () {
+                      setState(() {
+                        _mostrarFiltros = !_mostrarFiltros;
+                      });
+                    },
+                  ),
+                ],
+              ),
+
+              // Panel Colapsable de Filtros Secundarios Ocultos
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                height: _mostrarFiltros ? null : 0,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _mostrarFiltros ? 1.0 : 0.0,
+                  child: SingleChildScrollView(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade100),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInputFiltro(
+                                  controller: _vendedorController,
+                                  label: 'Vendedor',
+                                  icon: Icons.person_outline,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildInputFiltro(
+                                  controller: _tiendaController,
+                                  label: 'Tienda',
+                                  icon: Icons.store_outlined,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_tieneFiltrosActivos()) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _limpiarFiltros,
+                                icon: const Icon(
+                                  Icons.cleaning_services_rounded,
+                                  size: 16,
+                                  color: Colors.redAccent,
+                                ),
+                                label: const Text(
+                                  'Limpiar Filtros',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            )
+                          ]
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: _buildContenidoVentas(esHoy),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: Column(
@@ -490,8 +680,8 @@ class _VentaPageState extends State<VentaPage> {
                           filaData['colores'] != '' &&
                           filaData['colores'] != false &&
                           filaData['colores'] != '0')
-                        _miniChip(
-                            'Color: ${filaData['color_nombre']}', Colors.purple),
+                        _miniChip('Color: ${filaData['color_nombre']}',
+                            Colors.purple),
                       if (filaData['taco'] != null &&
                           filaData['taco'] != 0 &&
                           filaData['taco'] != '0')
@@ -550,6 +740,12 @@ class _VentaPageState extends State<VentaPage> {
                   filaData['metodo_pago'] ?? 'N/A'),
               _buildDetalleRow(Icons.storefront, 'Lugar de Venta',
                   filaData['lugar_venta'] ?? 'N/A'),
+              if ((filaData['lugar_venta'] ?? '').toString().toLowerCase() ==
+                      'tienda' &&
+                  filaData['tienda_nombre'] != null &&
+                  filaData['tienda_nombre'].toString().isNotEmpty)
+                _buildDetalleRow(Icons.store, 'Tienda',
+                    filaData['tienda_nombre'].toString()),
               if (esVentaDeHoy)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
