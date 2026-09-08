@@ -28,6 +28,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   List<Map<String, dynamic>> _listaColores = [];
 
   String? _calzadoId;
+  String? _iconoCalzadoSeleccionado;
   bool _tipoTienePlataforma = false;
   bool _tipoTieneColores = true;
   bool _tipoTieneTaco = false;
@@ -518,7 +519,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                         ),
                         onChanged: (v) => setState(() {
                           _filtroColor = v;
-                          _filtroColorController.text = v; // Mantener sincronizado
+                          _filtroColorController.text = v;
                           _paginaActual = 1;
                         }),
                       );
@@ -893,50 +894,109 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   }
 
   Widget _buildDropdownConIconos(List<Map<String, dynamic>> calzados) {
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-        labelText: 'Seleccionar código',
-        border: OutlineInputBorder(),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-      value: _calzadoId?.toString(),
-      items: calzados.map((doc) {
-        final idCalzado = (doc['id_calzado'] ?? doc['id'])?.toString();
+    return Autocomplete<Map<String, dynamic>>(
+      displayStringForOption: (option) =>
+          (option['nombre'] ?? option['articulo'] ?? option['modelo'] ?? '')
+              .toString(),
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return calzados;
+        }
+        return calzados.where((doc) {
+          final nombre =
+              (doc['nombre'] ?? doc['articulo'] ?? doc['modelo'] ?? '')
+                  .toString()
+                  .toLowerCase();
+          return nombre.contains(textEditingValue.text.toLowerCase());
+        });
+      },
+      onSelected: (Map<String, dynamic> selection) async {
+        final idCalzado =
+            (selection['id_calzado'] ?? selection['id'])?.toString();
         final tipoCalzadoId =
-            (doc['id_tipo_calzado'] ?? doc['tipo_calzado_id'])?.toString();
-        final nombre = doc['nombre'] ?? 'Sin nombre';
-        return DropdownMenuItem(
-          value: idCalzado,
-          child: FutureBuilder<String?>(
-            future: _obtenerIconoTipo(tipoCalzadoId),
-            builder: (context, iconSnapshot) {
-              final icono = iconSnapshot.data;
-              return Row(children: [
-                if (icono != null && icono.isNotEmpty)
-                  Image.asset(icono, width: 32, height: 32),
-                const SizedBox(width: 8),
-                Text(nombre, style: const TextStyle(color: Colors.black))
-              ]);
-            },
+            (selection['id_tipo_calzado'] ?? selection['tipo_calzado_id'])
+                ?.toString();
+        final icono = await _obtenerIconoTipo(tipoCalzadoId);
+
+        setState(() {
+          _calzadoId = idCalzado;
+          _iconoCalzadoSeleccionado = icono;
+          _tipoTieneTaco = selection['taco'] ?? true;
+          _tipoTienePlataforma = selection['plataforma'] ?? true;
+          _tipoTieneColores = selection['colores'] ?? true;
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Seleccionar código',
+            border: const OutlineInputBorder(),
+            filled: true,
+            fillColor: Colors.white,
+            prefixIcon: _iconoCalzadoSeleccionado != null &&
+                    _iconoCalzadoSeleccionado!.isNotEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.asset(
+                      _iconoCalzadoSeleccionado!,
+                      width: 28,
+                      height: 28,
+                    ),
+                  )
+                : const Icon(Icons.search),
+          ),
+          onChanged: (v) {
+            if (v.trim().isEmpty) {
+              setState(() {
+                _calzadoId = null;
+                _iconoCalzadoSeleccionado = null;
+              });
+            }
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: 250,
+                maxWidth: MediaQuery.of(context).size.width - 32,
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final doc = options.elementAt(index);
+                  final tipoCalzadoId =
+                      (doc['id_tipo_calzado'] ?? doc['tipo_calzado_id'])
+                          ?.toString();
+                  final nombre = doc['nombre'] ?? 'Sin nombre';
+
+                  return ListTile(
+                    leading: FutureBuilder<String?>(
+                      future: _obtenerIconoTipo(tipoCalzadoId),
+                      builder: (context, iconSnapshot) {
+                        final icono = iconSnapshot.data;
+                        if (icono != null && icono.isNotEmpty) {
+                          return Image.asset(icono, width: 32, height: 32);
+                        }
+                        return const SizedBox(width: 32, height: 32);
+                      },
+                    ),
+                    title: Text(nombre, style: const TextStyle(color: Colors.black)),
+                    onTap: () => onSelected(doc),
+                  );
+                },
+              ),
+            ),
           ),
         );
-      }).toList(),
-      onChanged: (v) async {
-        setState(() => _calzadoId = v);
-        if (v != null) {
-          final calzadoSeleccionado = calzados.firstWhere(
-            (item) => (item['id_calzado'] ?? item['id'])?.toString() == v,
-            orElse: () => {},
-          );
-          if (calzadoSeleccionado.isNotEmpty) {
-            setState(() {
-              _tipoTieneTaco = calzadoSeleccionado['taco'] ?? true;
-              _tipoTienePlataforma = calzadoSeleccionado['plataforma'] ?? true;
-              _tipoTieneColores = calzadoSeleccionado['colores'] ?? true;
-            });
-          }
-        }
       },
     );
   }

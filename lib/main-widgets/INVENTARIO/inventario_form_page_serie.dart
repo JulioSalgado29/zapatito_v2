@@ -31,6 +31,8 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   int _cantidadSeriesTotal = 0;
   final TextEditingController _cantidadTotalController =
       TextEditingController(text: '0');
+  final TextEditingController _calzadoSearchController =
+      TextEditingController();
 
   final List<Map<String, dynamic>> _subfilas = [];
   final Map<String, String?> _iconCache = {};
@@ -121,6 +123,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
 
   @override
   void dispose() {
+    _calzadoSearchController.dispose();
     _filtroColorController.dispose();
     _cantidadTotalController.dispose();
     super.dispose();
@@ -511,7 +514,7 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
                       ),
                       onChanged: (v) => setState(() {
                         _filtroColor = v;
-                        _filtroColorController.text = v; // Mantener sincronizado
+                        _filtroColorController.text = v;
                         _paginaActual = 1;
                       }),
                     );
@@ -777,49 +780,169 @@ class _InventarioSerieFormPageState extends State<InventarioSerieFormPage> {
   }
 
   Widget _buildDropdownConIconos() {
-    return DropdownButtonFormField<String>(
-      decoration: const InputDecoration(
-          labelText: 'Seleccionar código', border: OutlineInputBorder()),
-      value: _calzadoId,
-      items: _catalogoCalzados.map((doc) {
-        final idDoc = (doc['id'] ?? doc['id_calzado'] ?? doc['_id']).toString();
-        final tipoCalzadoId =
-            (doc['tipo_calzado_id'] ?? doc['id_tipo_calzado'] ?? '').toString();
-        final nombre = doc['nombre'] ?? 'Sin nombre';
+  final calzadoSeleccionado = _catalogoCalzados.firstWhere(
+    (doc) =>
+        (doc['id'] ?? doc['id_calzado'] ?? doc['_id']).toString() ==
+        _calzadoId,
+    orElse: () => {},
+  );
+  final String tipoCalzadoIdSeleccionado = calzadoSeleccionado.isNotEmpty
+      ? (calzadoSeleccionado['tipo_calzado_id'] ??
+              calzadoSeleccionado['id_tipo_calzado'] ??
+              '')
+          .toString()
+      : '';
 
-        return DropdownMenuItem(
-          value: idDoc,
-          child: FutureBuilder<String?>(
-            future: _obtenerIconoTipo(tipoCalzadoId),
-            builder: (context, iconSnapshot) {
-              final icono = iconSnapshot.data;
-              return Row(
-                children: [
-                  if (icono != null && icono.isNotEmpty)
-                    Image.asset(icono, width: 32, height: 32),
-                  const SizedBox(width: 8),
-                  Text(nombre),
-                ],
-              );
-            },
+  return Autocomplete<Map<String, dynamic>>(
+    displayStringForOption: (option) => option['nombre']?.toString() ?? '',
+    initialValue: TextEditingValue(
+      text: calzadoSeleccionado['nombre']?.toString() ?? '',
+    ),
+    optionsBuilder: (TextEditingValue textEditingValue) {
+      if (textEditingValue.text.isEmpty) {
+        return _catalogoCalzados;
+      }
+      return _catalogoCalzados.where((doc) {
+        final nombre = doc['nombre']?.toString().toLowerCase() ?? '';
+        return nombre.contains(textEditingValue.text.toLowerCase());
+      });
+    },
+    onSelected: (Map<String, dynamic> selection) async {
+      final idDoc =
+          (selection['id'] ?? selection['id_calzado'] ?? selection['_id'])
+              .toString();
+      setState(() {
+        _calzadoId = idDoc;
+        _calzadoSearchController.text =
+            selection['nombre']?.toString() ?? '';
+      });
+
+      final calzadoData = await CalzadoService.obtenerPorId(idDoc);
+      if (calzadoData != null && mounted) {
+        setState(() {
+          _tipoTieneTaco = calzadoData['taco'] ?? true;
+          _tipoTienePlataforma = calzadoData['plataforma'] ?? true;
+        });
+      }
+    },
+    optionsViewBuilder: (context, onSelected, options) {
+      return Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 4.0,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            constraints: const BoxConstraints(
+              maxHeight: 250,
+              maxWidth: 350,
+            ),
+            color: Theme.of(context).cardColor,
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (BuildContext context, int index) {
+                final option = options.elementAt(index);
+                final tipoCalzadoId = (option['tipo_calzado_id'] ??
+                        option['id_tipo_calzado'] ??
+                        '')
+                    .toString();
+                final nombre = option['nombre'] ?? 'Sin nombre';
+
+                return ListTile(
+                  leading: FutureBuilder<String?>(
+                    future: _obtenerIconoTipo(tipoCalzadoId),
+                    builder: (context, iconSnapshot) {
+                      final icono = iconSnapshot.data;
+                      if (icono != null && icono.isNotEmpty) {
+                        return Image.asset(
+                          icono,
+                          width: 28,
+                          height: 28,
+                          errorBuilder: (_, __, ___) =>
+                              const SizedBox.shrink(),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  title: Text(nombre),
+                  onTap: () => onSelected(option),
+                );
+              },
+            ),
           ),
+        ),
+      );
+    },
+    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+      if (_calzadoSearchController.text != controller.text &&
+          _calzadoId != null) {
+        final seleccionado = _catalogoCalzados.firstWhere(
+          (doc) =>
+              (doc['id'] ?? doc['id_calzado'] ?? doc['_id']).toString() ==
+              _calzadoId,
+          orElse: () => {},
         );
-      }).toList(),
-      onChanged: (v) async {
-        setState(() => _calzadoId = v);
-        if (v != null) {
-          final calzadoData = await CalzadoService.obtenerPorId(v);
-          if (calzadoData != null) {
+        if (seleccionado.isNotEmpty) {
+          controller.text = seleccionado['nombre']?.toString() ?? '';
+        }
+      }
+
+      return TextFormField(
+        controller: controller,
+        focusNode: focusNode,
+        decoration: InputDecoration(
+          labelText: 'Seleccionar código',
+          border: const OutlineInputBorder(),
+          prefixIcon: _calzadoId != null && tipoCalzadoIdSeleccionado.isNotEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: FutureBuilder<String?>(
+                    future: _obtenerIconoTipo(tipoCalzadoIdSeleccionado),
+                    builder: (context, iconSnapshot) {
+                      final icono = iconSnapshot.data;
+                      if (icono != null && icono.isNotEmpty) {
+                        return Image.asset(
+                          icono,
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.search),
+                        );
+                      }
+                      return const Icon(Icons.search);
+                    },
+                  ),
+                )
+              : const Icon(Icons.search),
+          suffixIcon: _calzadoId != null
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 20),
+                  onPressed: () {
+                    controller.clear();
+                    _calzadoSearchController.clear();
+                    setState(() {
+                      _calzadoId = null;
+                      _tipoTieneTaco = false;
+                      _tipoTienePlataforma = false;
+                    });
+                  },
+                )
+              : null,
+        ),
+        onChanged: (v) {
+          if (_calzadoId != null) {
             setState(() {
-              _tipoTieneTaco = calzadoData['taco'] ?? true;
-              _tipoTienePlataforma = calzadoData['plataforma'] ?? true;
+              _calzadoId = null;
             });
           }
-        }
-      },
-    );
-  }
-
+        },
+      );
+    },
+  );
+}
+  
   @override
   Widget build(BuildContext context) {
     if (_cargandoDatos) return const SplashScreen02();
