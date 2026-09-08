@@ -4,6 +4,7 @@ import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/fila_venta.dart';
+import 'package:zapatito_v2/services/API/tienda.dart'; // 👈 Asegúrate de importar tu servicio
 
 class VentaFormPage extends StatefulWidget {
   final String? firstName;
@@ -27,11 +28,16 @@ class VentaFormPage extends StatefulWidget {
 
 class _VentaFormPageState extends State<VentaFormPage> {
   bool _cargandoInicial = true;
+  bool _cargandoTiendas = true;
+
   List<Map<String, dynamic>> _calzados = [];
+  List<Map<String, dynamic>> _listaTiendas = [];
 
   bool esMuestra = false;
   String? idDuenoMuestra;
   String? nombreDuenoMuestra;
+
+  dynamic _tiendaSeleccionadaId; // 👈 Guarda el ID de la tienda editable
 
   String? _calzadoId;
   int? _tallaSeleccionada;
@@ -69,10 +75,48 @@ class _VentaFormPageState extends State<VentaFormPage> {
   @override
   void initState() {
     super.initState();
-    _cargarDatosEdicion();
+    _inicializarDatos();
   }
 
-  // 🔹 Recolección asíncrona única al inicializar el widget
+  Future<void> _inicializarDatos() async {
+    await Future.wait([
+      _cargarDatosEdicion(),
+      _cargarTiendas(),
+    ]);
+  }
+
+  // 🔹 Carga de lista de tiendas asociadas al inventario
+  Future<void> _cargarTiendas() async {
+    if (widget.inventarioId == null) {
+      if (mounted) setState(() => _cargandoTiendas = false);
+      return;
+    }
+    try {
+      final data =
+          await TiendaService.obtenerPorInventario(widget.inventarioId!);
+      if (mounted) {
+        setState(() {
+          _listaTiendas = List<Map<String, dynamic>>.from(data);
+
+          // Valida si la tienda cargada de datosEdicion existe en la lista obtenida
+          final bool idExiste = _listaTiendas.any((t) =>
+              t['id_tienda']?.toString() ==
+              _tiendaSeleccionadaId?.toString());
+
+          if (!idExiste && _listaTiendas.isNotEmpty) {
+            // Si el id pre-cargado no coincide o es inválido, puede resetearse o mantenerse
+            _tiendaSeleccionadaId = null;
+          }
+
+          _cargandoTiendas = false;
+        });
+      }
+    } catch (e) {
+      print('Error cargando tiendas: $e');
+      if (mounted) setState(() => _cargandoTiendas = false);
+    }
+  }
+
   Future<void> _cargarDatosEdicion() async {
     if (widget.datosEdicion == null) {
       if (mounted) setState(() => _cargandoInicial = false);
@@ -83,7 +127,6 @@ class _VentaFormPageState extends State<VentaFormPage> {
     final String cId = d['id_calzado'].toString();
 
     try {
-      // 1. Obtenemos calzados del inventario y el detalle del calzado a editar en paralelo
       final calzadosFuture =
           CalzadoService.obtenerPorInventarioUpdate(widget.inventarioId);
       final detalleCalzadoFuture = CalzadoService.obtenerPorId(cId);
@@ -129,6 +172,9 @@ class _VentaFormPageState extends State<VentaFormPage> {
               double.tryParse(d['precio_venta_total'].toString()) ?? 0.0;
           _metodoPagoSeleccionado = d['metodo_pago'];
           _lugarVentaSeleccionado = d['lugar_venta'];
+          
+          // 👈 Precarga del ID de la tienda proveniente de la edición
+          _tiendaSeleccionadaId = d['id_tienda'] ?? d['tienda_id'];
 
           esMuestra = d['id_dueno_muestra'] != null;
           idDuenoMuestra = d['id_dueno_muestra']?.toString();
@@ -153,9 +199,6 @@ class _VentaFormPageState extends State<VentaFormPage> {
     super.dispose();
   }
 
-  // -------------------------------------------------------
-  // ACCIONES Y LOGICA DE VENTA
-  // -------------------------------------------------------
   bool get _puedeVender {
     if (_calzadoId == null || _tallaSeleccionada == null) return false;
     if (_tipoTieneColores && _colorSeleccionado == null) return false;
@@ -163,6 +206,12 @@ class _VentaFormPageState extends State<VentaFormPage> {
     if (_tipoTienePlataforma && _plataformaSeleccionada == null) return false;
     if (_metodoPagoSeleccionado == null) return false;
     if (_lugarVentaSeleccionado == null) return false;
+
+    // 👈 Si es 'Tienda', debe haber seleccionado obligatoriamente una tienda
+    if (_lugarVentaSeleccionado == 'Tienda' && _tiendaSeleccionadaId == null) {
+      return false;
+    }
+
     if (_cantidadVenta <= 0 || _precioVentaTotal <= 0) return false;
 
     return true;
@@ -182,17 +231,17 @@ class _VentaFormPageState extends State<VentaFormPage> {
         'id_inventario': widget.inventarioId,
         'id_calzado': _calzadoId,
         'talla': _tallaSeleccionada,
-        // colores es VARCHAR: si no tiene o es nulo, envía "0"
         'colores': _tipoTieneColores ? (_idColorSeleccionado ?? "0") : "0",
-        // taco es INTEGER: si no tiene o es nulo, envía 0
         'taco': _tipoTieneTaco ? (_tacoSeleccionado ?? 0) : 0,
-        // plataforma es VARCHAR: si no tiene o es nulo, envía "0"
         'plataforma':
             _tipoTienePlataforma ? (_plataformaSeleccionada ?? "0") : "0",
         'cantidad': _cantidadVenta,
         'precio_venta_total': _precioVentaTotal,
         'metodo_pago': _metodoPagoSeleccionado,
         'lugar_venta': _lugarVentaSeleccionado,
+        // 👈 Envía id_tienda solo si el lugar de venta es 'Tienda', o null/0 en otro caso
+        'id_tienda':
+            _lugarVentaSeleccionado == 'Tienda' ? _tiendaSeleccionadaId : null,
         'usuario_creacion': widget.firstName ?? 'anon',
         'email_user': widget.emailUser ?? 'anon',
       },
@@ -214,6 +263,37 @@ class _VentaFormPageState extends State<VentaFormPage> {
   // -------------------------------------------------------
   // UI COMPONENTS
   // -------------------------------------------------------
+
+  // 👈 Dropdown dinámico que se dibuja condicionalmente cuando lugarVenta es 'Tienda'
+  Widget _buildDropdownTienda() {
+    if (_lugarVentaSeleccionado != 'Tienda') return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: _cargandoTiendas
+          ? const LinearProgressIndicator()
+          : DropdownButtonFormField<dynamic>(
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Seleccionar Tienda',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.storefront_outlined),
+              ),
+              value: _tiendaSeleccionadaId,
+              hint: const Text('Seleccione Tienda'),
+              items: _listaTiendas
+                  .map((t) => DropdownMenuItem<dynamic>(
+                        value: t['id_tienda'],
+                        child: Text(
+                          t['nombre']?.toString() ?? 'Sin nombre',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _tiendaSeleccionadaId = v),
+            ),
+    );
+  }
 
   Widget _buildDropdownCalzado() {
     return DropdownButtonFormField<String>(
@@ -385,10 +465,19 @@ class _VentaFormPageState extends State<VentaFormPage> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13))))
                 .toList(),
-            onChanged: (v) => setState(() => _lugarVentaSeleccionado = v),
+            onChanged: (v) {
+              setState(() {
+                _lugarVentaSeleccionado = v;
+                // Si cambia a algo distinto de Tienda, limpia la selección de tienda
+                if (v != 'Tienda') {
+                  _tiendaSeleccionadaId = null;
+                }
+              });
+            },
           ),
         ),
       ]),
+      _buildDropdownTienda(), // 👈 Se muestra solo si _lugarVentaSeleccionado == 'Tienda'
     ]);
   }
 

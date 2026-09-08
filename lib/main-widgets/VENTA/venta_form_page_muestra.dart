@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
-import 'package:zapatito_v2/services/API/colores.dart'; // 🔹 Ajusta el import a tu servicio de colores
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/dueno_muestra.dart';
 import 'package:zapatito_v2/services/API/fila_venta.dart';
+import 'package:zapatito_v2/services/API/tienda.dart';
 
 // Modelo para manejar cada fila de venta independiente
 class VentaItem {
   String? duenoMuestraId;
   String descripcionMuestra = '';
   int? tallaSeleccionada;
-  int? colorSeleccionado; // 🔹 Almacena el ID del color
+  int? colorSeleccionado;
 
   int cantidadVenta = 0;
   double precioVentaTotal = 0.0;
@@ -20,8 +21,9 @@ class VentaItem {
 
   String? metodoPagoSeleccionado;
   String? lugarVentaSeleccionado;
+  int? tiendaSeleccionadaId; // 🔹 ID de la tienda seleccionada
 
-  // 🔹 Controladores para los campos de texto
+  // Controladores para los campos de texto
   final TextEditingController muestraController = TextEditingController();
   final TextEditingController cantidadController = TextEditingController();
   final TextEditingController precioController = TextEditingController();
@@ -37,10 +39,11 @@ class VentaItem {
     muestra = true;
     metodoPagoSeleccionado = null;
     lugarVentaSeleccionado = null;
+    tiendaSeleccionadaId = null; // 🔹 Limpiar id_tienda
     muestraController.clear();
     cantidadController.clear();
     precioController.clear();
-    colorController.clear(); // 🔹 Limpia el campo de texto del color
+    colorController.clear();
   }
 
   void dispose() {
@@ -72,8 +75,8 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
 
   // Data general que solo se consulta 1 vez
   List<Map<String, dynamic>> _duenosMuestra = [];
-  List<Map<String, dynamic>> _colores =
-      []; // 🔹 Lista de colores cargada desde la API
+  List<Map<String, dynamic>> _colores = [];
+  List<Map<String, dynamic>> _tiendas = []; // 🔹 Lista de tiendas cargada de la API
 
   bool _cargandoInicial = true;
 
@@ -96,7 +99,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     _cargarDatosIniciales();
   }
 
-  // 🔹 Carga de data por única vez al iniciar la pantalla
   Future<void> _cargarDatosIniciales() async {
     if (widget.inventarioId == null) {
       setState(() => _cargandoInicial = false);
@@ -106,14 +108,15 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     try {
       final resultados = await Future.wait([
         DuenoMuestraService.obtenerPorInventario(widget.inventarioId!),
-        ColoresService.obtenerPorInventario(
-            widget.inventarioId!), // 🔹 Llamada al servicio de colores
+        ColoresService.obtenerPorInventario(widget.inventarioId!),
+        TiendaService.obtenerPorInventario(widget.inventarioId!), // 🔹 Llamada al servicio de tiendas
       ]);
 
       if (mounted) {
         setState(() {
           _duenosMuestra = resultados[0];
           _colores = resultados[1];
+          _tiendas = resultados[2];
           _cargandoInicial = false;
         });
         _agregarNuevoItem();
@@ -164,12 +167,15 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
           'descripcion_muestra': item.descripcionMuestra,
           'talla': item.tallaSeleccionada,
           'taco': 0,
-          'colores': item.colorSeleccionado, // 🔹 Envía el ID del color (int?)
+          'colores': item.colorSeleccionado,
           'plataforma': "0",
           'cantidad': item.cantidadVenta,
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
           'lugar_venta': item.lugarVentaSeleccionado,
+          'id_tienda': item.lugarVentaSeleccionado == 'Tienda'
+              ? item.tiendaSeleccionadaId
+              : null, // 🔹 Envía id_tienda solo si seleccionó 'Tienda'
           'usuario_creacion': widget.firstName ?? 'anon',
           'email_user': widget.emailUser ?? 'anon',
           'muestra': item.muestra,
@@ -263,7 +269,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
             onChanged: (v) => setState(() => item.tallaSeleccionada = v),
           ),
         ),
-        // 🔹 Buscador de Color mediante Autocomplete funcional para escribir
         Padding(
           padding: const EdgeInsets.only(top: 12),
           child: LayoutBuilder(
@@ -293,7 +298,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                 },
                 fieldViewBuilder:
                     (context, textController, focusNode, onFieldSubmitted) {
-                  // Sincroniza el controlador interno de Autocomplete con nuestro VentaItem
                   textController.addListener(() {
                     item.colorController.text = textController.text;
                     if (textController.text.isEmpty &&
@@ -304,7 +308,6 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                     }
                   });
 
-                  // Mantiene el valor en caso de limpiarse desde fuera
                   if (item.colorController.text.isEmpty &&
                       textController.text.isNotEmpty) {
                     textController.clear();
@@ -341,8 +344,7 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: constraints.maxWidth,
-                          maxHeight:
-                              200, // 🔹 Se aplica el límite de altura correctamente
+                          maxHeight: 200,
                         ),
                         child: ListView.builder(
                           padding: EdgeInsets.zero,
@@ -370,49 +372,88 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     );
   }
 
+  // 🔹 Renderizado de Método de Pago, Lugar de Venta y Desplegable de Tiendas
   Widget _buildPagoYLugar(int index) {
     var item = _itemsVenta[index];
     if (item.descripcionMuestra.trim().isEmpty) return const SizedBox();
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Método de Pago',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+                  value: item.metodoPagoSeleccionado,
+                  items: _metodosPago
+                      .map((m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => item.metodoPagoSeleccionado = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Lugar de Venta',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+                  value: item.lugarVentaSeleccionado,
+                  items: _lugaresVenta
+                      .map((l) => DropdownMenuItem(
+                          value: l,
+                          child: Text(l, overflow: TextOverflow.ellipsis)))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() {
+                      item.lugarVentaSeleccionado = v;
+                      if (v != 'Tienda') {
+                        item.tiendaSeleccionadaId = null;
+                      }
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 🔹 Si el lugar seleccionado es 'Tienda', muestra el desplegable de Tiendas
+        if (item.lugarVentaSeleccionado == 'Tienda')
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: DropdownButtonFormField<int>(
               isExpanded: true,
               decoration: const InputDecoration(
-                  labelText: 'Método de Pago',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
-              value: item.metodoPagoSeleccionado,
-              items: _metodosPago
-                  .map((m) => DropdownMenuItem(
-                      value: m,
-                      child: Text(m, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
+                labelText: 'Seleccionar Tienda',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.store),
+              ),
+              value: item.tiendaSeleccionadaId,
+              items: _tiendas.map((tienda) {
+                final id = int.tryParse(
+                        tienda['id_tienda']?.toString() ?? '') ??
+                    0;
+                final nombre = tienda['nombre'] ?? tienda['nombre_tienda'] ?? '';
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text(nombre, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (v) =>
+                  setState(() => item.tiendaSeleccionadaId = v),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              decoration: const InputDecoration(
-                  labelText: 'Lugar de Venta',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10)),
-              value: item.lugarVentaSeleccionado,
-              items: _lugaresVenta
-                  .map((l) => DropdownMenuItem(
-                      value: l,
-                      child: Text(l, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.lugarVentaSeleccionado = v),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -494,16 +535,20 @@ class _VentaFormPageMuestraState extends State<VentaFormPageMuestra> {
     }
 
     bool puedeVenderTodo = _itemsVenta.isNotEmpty &&
-        _itemsVenta.every((i) =>
-            i.descripcionMuestra.trim().isNotEmpty &&
-            i.duenoMuestraId != null &&
-            i.tallaSeleccionada != null &&
-            i.colorSeleccionado !=
-                null && // 🔹 Obliga a seleccionar un color válido
-            i.metodoPagoSeleccionado != null &&
-            i.lugarVentaSeleccionado != null &&
-            i.cantidadVenta > 0 &&
-            i.precioVentaTotal > 0);
+        _itemsVenta.every((i) {
+          bool tiendaValida = i.lugarVentaSeleccionado != 'Tienda' ||
+              i.tiendaSeleccionadaId != null;
+
+          return i.descripcionMuestra.trim().isNotEmpty &&
+              i.duenoMuestraId != null &&
+              i.tallaSeleccionada != null &&
+              i.colorSeleccionado != null &&
+              i.metodoPagoSeleccionado != null &&
+              i.lugarVentaSeleccionado != null &&
+              tiendaValida && // 🔹 Obliga a seleccionar tienda si lugar == 'Tienda'
+              i.cantidadVenta > 0 &&
+              i.precioVentaTotal > 0;
+        });
 
     return Scaffold(
       appBar: Designwidgets().appBarMain('Venta por Muestra'),

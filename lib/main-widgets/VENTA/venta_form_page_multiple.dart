@@ -10,10 +10,10 @@ class VentaItem {
   String? calzadoId;
   int? tallaSeleccionada;
   int? tacoSeleccionado;
-  
+
   // ID del color para el backend
   dynamic colorSeleccionadoId;
-  
+
   String? plataformaSeleccionada;
   int stockDisponible = 0;
   int cantidadVenta = 0;
@@ -22,10 +22,10 @@ class VentaItem {
   List<int> calzadosDisponibles = [];
   List<int> tallasDisponibles = [];
   List<int> tacosDisponibles = [];
-  
+
   // Estructura de mapas para guardar ID y Nombre del color
   List<Map<String, dynamic>> coloresDisponibles = [];
-  
+
   List<String> plataformasDisponibles = [];
   bool errorTalla = false;
   bool errorColor = false;
@@ -239,7 +239,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
           final rawCalzados =
               data['calzados_disponibles'] ?? data['calzados'] ?? [];
-          
+
           item.calzadosDisponibles = List<int>.from(
             (rawCalzados as List)
                 .map((c) => int.tryParse(c.toString()) ?? 0)
@@ -267,7 +267,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           // 🔹 PARSEO DE COLORES (Soporta JSON de Objetos o Arreglos Paralelos)
           List<Map<String, dynamic>> coloresMapeados = [];
 
-          final rawColoresEstructurados = data['colores_disponibles'] ?? data['lista_colores_disponibles'];
+          final rawColoresEstructurados =
+              data['colores_disponibles'] ?? data['lista_colores_disponibles'];
 
           if (rawColoresEstructurados is List &&
               rawColoresEstructurados.isNotEmpty &&
@@ -275,21 +276,23 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
             // Opción 1: Llega directo como [{id: 1, nombre: 'Rojo'}, ...]
             coloresMapeados = List<Map<String, dynamic>>.from(
               rawColoresEstructurados.map((c) => {
-                'id': c['id'],
-                'nombre': c['nombre']?.toString() ?? c['id'].toString(),
-              }),
+                    'id': c['id'],
+                    'nombre': c['nombre']?.toString() ?? c['id'].toString(),
+                  }),
             );
           } else {
             // Opción 2: Respaldo por si llegan arreglos separados (compatibilidad)
-            final rawIdsColores = data['colores_disponibles'] ?? data['colores'] ?? [];
+            final rawIdsColores =
+                data['colores_disponibles'] ?? data['colores'] ?? [];
             final rawNombresColores = data['nombres_colores_disponibles'] ?? [];
 
             if (rawIdsColores is List) {
               for (int i = 0; i < rawIdsColores.length; i++) {
                 final id = rawIdsColores[i];
-                final nombre = (rawNombresColores is List && i < rawNombresColores.length)
-                    ? rawNombresColores[i].toString()
-                    : id.toString();
+                final nombre =
+                    (rawNombresColores is List && i < rawNombresColores.length)
+                        ? rawNombresColores[i].toString()
+                        : id.toString();
 
                 coloresMapeados.add({
                   'id': id,
@@ -355,7 +358,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         i.tallaSeleccionada != null &&
         i.metodoPagoSeleccionado != null &&
         i.lugarVentaSeleccionado != null &&
-        (i.lugarVentaSeleccionado != 'Tienda' || i.tiendaSeleccionadaId != null) &&
+        (i.lugarVentaSeleccionado != 'Tienda' ||
+            i.tiendaSeleccionadaId != null) &&
         i.cantidadVenta > 0 &&
         i.cantidadVenta <= i.stockDisponible)) return;
 
@@ -449,7 +453,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     final String? iconoSeleccionado = calzadoSeleccionado?['icono'];
 
     return Autocomplete<Map<String, dynamic>>(
-      key: ValueKey('autocomplete_${index}_${item.calzadosDisponibles.join("_")}'),
+      key: ValueKey(
+          'autocomplete_${index}_${item.calzadosDisponibles.join("_")}'),
       initialValue: TextEditingValue(text: item.calzadoController.text),
       displayStringForOption: (Map<String, dynamic> option) =>
           option['nombre'] ?? 'S/N',
@@ -492,18 +497,19 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           decoration: InputDecoration(
             labelText: 'Calzado',
             border: const OutlineInputBorder(),
-            prefixIcon: (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
-                ? Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Image.asset(
-                      iconoSeleccionado,
-                      width: 24,
-                      height: 24,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.image_not_supported, size: 24),
-                    ),
-                  )
-                : null,
+            prefixIcon:
+                (iconoSeleccionado != null && iconoSeleccionado.isNotEmpty)
+                    ? Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Image.asset(
+                          iconoSeleccionado,
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.image_not_supported, size: 24),
+                        ),
+                      )
+                    : null,
             suffixIcon: IconButton(
               icon: const Icon(Icons.arrow_drop_down),
               onPressed: () {
@@ -548,8 +554,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                               icono,
                               width: 28,
                               height: 28,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.image_not_supported, size: 28),
+                              errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.image_not_supported,
+                                  size: 28),
                             )
                           : const Icon(Icons.category, size: 28),
                       title: Text(option['nombre'] ?? 'S/N'),
@@ -585,7 +592,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: DropdownButtonFormField<int>(
-        key: ValueKey('talla_dropdown_${index}_${item.calzadoId}_${listadoTallas.join("_")}'),
+        key: ValueKey(
+            'talla_dropdown_${index}_${item.calzadoId}_${listadoTallas.join("_")}'),
         decoration: InputDecoration(
           labelText: 'Talla',
           border: const OutlineInputBorder(),
@@ -739,8 +747,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     if (!listo) return const SizedBox();
 
-    bool idTiendaExiste = _listaTiendas.any(
-        (t) => t['id_tienda']?.toString() == item.tiendaSeleccionadaId?.toString());
+    bool idTiendaExiste = _listaTiendas.any((t) =>
+        t['id_tienda']?.toString() == item.tiendaSeleccionadaId?.toString());
     if (!idTiendaExiste) {
       item.tiendaSeleccionadaId = null;
     }
@@ -766,7 +774,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                           value: m,
                           child: Text(m, overflow: TextOverflow.ellipsis)))
                       .toList(),
-                  onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
+                  onChanged: (v) =>
+                      setState(() => item.metodoPagoSeleccionado = v),
                 ),
               ),
               const SizedBox(width: 8),
@@ -818,7 +827,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
                               ),
                             ))
                         .toList(),
-                    onChanged: (v) => setState(() => item.tiendaSeleccionadaId = v),
+                    onChanged: (v) =>
+                        setState(() => item.tiendaSeleccionadaId = v),
                   ),
           ],
         ],
@@ -898,7 +908,8 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
             i.calzadoId != null &&
             i.metodoPagoSeleccionado != null &&
             i.lugarVentaSeleccionado != null &&
-            (i.lugarVentaSeleccionado != 'Tienda' || i.tiendaSeleccionadaId != null) &&
+            (i.lugarVentaSeleccionado != 'Tienda' ||
+                i.tiendaSeleccionadaId != null) &&
             i.tallaSeleccionada != null &&
             i.cantidadVenta > 0 &&
             i.cantidadVenta <= i.stockDisponible &&
