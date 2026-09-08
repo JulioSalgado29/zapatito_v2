@@ -4,6 +4,7 @@ import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/calzado.dart';
 import 'package:zapatito_v2/services/API/fila_venta_multiple.dart';
+import 'package:zapatito_v2/services/API/tienda.dart';
 
 class VentaItem {
   String? calzadoId;
@@ -34,6 +35,7 @@ class VentaItem {
   bool tipoTieneColores = false;
   String? metodoPagoSeleccionado;
   String? lugarVentaSeleccionado;
+  dynamic tiendaSeleccionadaId;
 
   final TextEditingController calzadoController = TextEditingController();
   final TextEditingController cantidadController = TextEditingController();
@@ -62,6 +64,7 @@ class VentaItem {
     tipoTieneColores = false;
     metodoPagoSeleccionado = null;
     lugarVentaSeleccionado = null;
+    tiendaSeleccionadaId = null;
     calzadoController.clear();
     cantidadController.clear();
     precioController.clear();
@@ -89,7 +92,9 @@ class VentaFormPageMultiple extends StatefulWidget {
 class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
   final List<VentaItem> _itemsVenta = [];
   List<Map<String, dynamic>> _listaCalzados = [];
+  List<Map<String, dynamic>> _listaTiendas = [];
   bool _cargandoCalzados = true;
+  bool _cargandoTiendas = true;
 
   final List<String> _metodosPago = [
     'Efectivo',
@@ -110,6 +115,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
     super.initState();
     _cargarTallasInicialesInventario();
     _cargarCalzados();
+    _cargarTiendas();
     _agregarNuevoItem();
   }
 
@@ -145,6 +151,25 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
       }
     } catch (e) {
       if (mounted) setState(() => _cargandoCalzados = false);
+    }
+  }
+
+  Future<void> _cargarTiendas() async {
+    if (widget.inventarioId == null) {
+      if (mounted) setState(() => _cargandoTiendas = false);
+      return;
+    }
+    try {
+      final data =
+          await TiendaService.obtenerPorInventario(widget.inventarioId!);
+      if (mounted) {
+        setState(() {
+          _listaTiendas = data;
+          _cargandoTiendas = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _cargandoTiendas = false);
     }
   }
 
@@ -330,6 +355,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
         i.tallaSeleccionada != null &&
         i.metodoPagoSeleccionado != null &&
         i.lugarVentaSeleccionado != null &&
+        (i.lugarVentaSeleccionado != 'Tienda' || i.tiendaSeleccionadaId != null) &&
         i.cantidadVenta > 0 &&
         i.cantidadVenta <= i.stockDisponible)) return;
 
@@ -350,6 +376,9 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
           'precio_venta_total': item.precioVentaTotal,
           'metodo_pago': item.metodoPagoSeleccionado,
           'lugar_venta': item.lugarVentaSeleccionado,
+          'id_tienda': item.lugarVentaSeleccionado == 'Tienda'
+              ? item.tiendaSeleccionadaId
+              : null,
         };
       }).toList();
 
@@ -710,47 +739,88 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
 
     if (!listo) return const SizedBox();
 
+    bool idTiendaExiste = _listaTiendas.any(
+        (t) => t['id_tienda']?.toString() == item.tiendaSeleccionadaId?.toString());
+    if (!idTiendaExiste) {
+      item.tiendaSeleccionadaId = null;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Método de Pago',
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Método de Pago',
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
+                  value: item.metodoPagoSeleccionado,
+                  items: _metodosPago
+                      .map((m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis)))
+                      .toList(),
+                  onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
+                ),
               ),
-              value: item.metodoPagoSeleccionado,
-              items: _metodosPago
-                  .map((m) => DropdownMenuItem(
-                      value: m,
-                      child: Text(m, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.metodoPagoSeleccionado = v),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Lugar de Venta',
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Lugar de Venta',
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  ),
+                  value: item.lugarVentaSeleccionado,
+                  items: _lugaresVenta
+                      .map((l) => DropdownMenuItem(
+                          value: l,
+                          child: Text(l, overflow: TextOverflow.ellipsis)))
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    item.lugarVentaSeleccionado = v;
+                    if (v != 'Tienda') {
+                      item.tiendaSeleccionadaId = null;
+                    }
+                  }),
+                ),
               ),
-              value: item.lugarVentaSeleccionado,
-              items: _lugaresVenta
-                  .map((l) => DropdownMenuItem(
-                      value: l,
-                      child: Text(l, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setState(() => item.lugarVentaSeleccionado = v),
-            ),
+            ],
           ),
+          if (item.lugarVentaSeleccionado == 'Tienda') ...[
+            const SizedBox(height: 12),
+            _cargandoTiendas
+                ? const LinearProgressIndicator()
+                : DropdownButtonFormField<dynamic>(
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Tienda',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    ),
+                    value: item.tiendaSeleccionadaId,
+                    hint: const Text('Seleccione Tienda'),
+                    items: _listaTiendas
+                        .map((t) => DropdownMenuItem<dynamic>(
+                              value: t['id_tienda'],
+                              child: Text(
+                                t['nombre']?.toString() ?? 'Sin nombre',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => item.tiendaSeleccionadaId = v),
+                  ),
+          ],
         ],
       ),
     );
@@ -828,6 +898,7 @@ class _VentaFormPageMultipleState extends State<VentaFormPageMultiple> {
             i.calzadoId != null &&
             i.metodoPagoSeleccionado != null &&
             i.lugarVentaSeleccionado != null &&
+            (i.lugarVentaSeleccionado != 'Tienda' || i.tiendaSeleccionadaId != null) &&
             i.tallaSeleccionada != null &&
             i.cantidadVenta > 0 &&
             i.cantidadVenta <= i.stockDisponible &&
