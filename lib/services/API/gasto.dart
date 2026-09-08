@@ -1,15 +1,26 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:zapatito_v2/services/API/api_service.dart';
 
 class GastoService {
   // 1. Listar gastos por ID de inventario
   // GET /api/gasto/inventario/:id_inventario
   static Future<List<Map<String, dynamic>>> obtenerPorInventario(
-      String idInventario) async {
+    String idInventario, {
+    DateTime? fechaFiltro,
+  }) async {
     try {
+      String queryParams = '';
+
+      if (fechaFiltro != null) {
+        // Aseguramos que la fecha enviada sea la fecha local
+        String fechaFormateada =
+            DateFormat('yyyy-MM-dd').format(fechaFiltro.toLocal());
+        queryParams = '?fecha=$fechaFormateada';
+      }
       final url = Uri.parse(
-        '${ApiService.baseUrl}/api/gasto/inventario/${Uri.encodeComponent(idInventario)}',
+        '${ApiService.baseUrl}/api/gasto/inventario/${Uri.encodeComponent(idInventario)}$queryParams',
       );
 
       final response = await http.get(
