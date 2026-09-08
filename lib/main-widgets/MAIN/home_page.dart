@@ -3,6 +3,7 @@ import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/main-widgets/CALZADO/calzado_page.dart';
 import 'package:zapatito_v2/main-widgets/COLORES/colores_page.dart';
 import 'package:zapatito_v2/main-widgets/DUENO_MUESTRA/dueno_muestra_page.dart';
+import 'package:zapatito_v2/main-widgets/GASTO/gasto_page.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_page.dart';
 import 'package:zapatito_v2/main-widgets/TIENDA/tienda_page.dart';
 import 'package:zapatito_v2/main-widgets/TIPO_CALZADO/tipo_calzado_page.dart';
@@ -146,25 +147,34 @@ class _HomePageState extends State<HomePage> {
                           inventarioId: inventarioId,
                           isAlmacenero: isAlmacenero),
                     ),
-                if (isAdmin || isAlmacenero ||isVendedor)
-                  _buildMenuButton(
-                    context,
-                    label: 'Inventario',
-                    page: InventarioPage(
-                        firstName: firstName,
-                        emailUser: emailUser,
-                        inventarioId: inventarioId,
-                        isVendedor: isVendedor),
-                  ),
-                if (isAdmin || isVendedor || isAlmacenero)
-                  _buildMenuButton(
-                    context,
-                    label: 'Ventas',
-                    page: VentaPage(
-                        firstName: firstName,
-                        emailUser: emailUser,
-                        inventarioId: inventarioId),
-                  ),
+                  if (isAdmin || isAlmacenero || isVendedor)
+                    _buildMenuButton(
+                      context,
+                      label: 'Inventario',
+                      page: InventarioPage(
+                          firstName: firstName,
+                          emailUser: emailUser,
+                          inventarioId: inventarioId,
+                          isVendedor: isVendedor),
+                    ),
+                  if (isAdmin || isVendedor || isAlmacenero)
+                    _buildMenuButton(
+                      context,
+                      label: 'Ventas',
+                      page: VentaPage(
+                          firstName: firstName,
+                          emailUser: emailUser,
+                          inventarioId: inventarioId),
+                    ),
+                  if (isAdmin || isVendedor || isAlmacenero)
+                    _buildMenuButton(
+                      context,
+                      label: 'Gastos',
+                      page: GastoPage(
+                          firstName: firstName,
+                          emailUser: emailUser,
+                          inventarioId: inventarioId),
+                    ),
                 ],
               ),
             ),

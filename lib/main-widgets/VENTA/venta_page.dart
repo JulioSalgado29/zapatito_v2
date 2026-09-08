@@ -323,7 +323,7 @@ class _VentaPageState extends State<VentaPage> {
                   });
                 },
               )
-            : const Text('Ventas Realizadas',
+            : const Text('Ventas',
                 style: TextStyle(
                     fontWeight: FontWeight.bold, fontFamily: 'Georgia')),
         actions: [
