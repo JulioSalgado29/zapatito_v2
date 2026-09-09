@@ -3,25 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 
 // ==========================================
-// VISTA: cierre_caja_form (Diseño Minimalista & Elegante en Tonos Claros)
+// VISTA: cierre_caja_form (Diseño Minimalista & Elegante con todos los cursores)
 // ==========================================
-class CierreCajaForm extends StatelessWidget {
+class CierreCajaForm extends StatefulWidget {
   final dynamic datosRespuesta;
 
   const CierreCajaForm({super.key, required this.datosRespuesta});
 
   @override
+  State<CierreCajaForm> createState() => _CierreCajaFormState();
+}
+
+class _CierreCajaFormState extends State<CierreCajaForm> {
+  bool _mostrarUtilidad = false; // Estado para ocultar/mostrar la utilidad neta
+
+  @override
   Widget build(BuildContext context) {
     Map<String, dynamic> data = {};
-    if (datosRespuesta is Map) {
-      data = Map<String, dynamic>.from(datosRespuesta);
-    } else if (datosRespuesta is String) {
+    if (widget.datosRespuesta is Map) {
+      data = Map<String, dynamic>.from(widget.datosRespuesta);
+    } else if (widget.datosRespuesta is String) {
       try {
-        data = jsonDecode(datosRespuesta);
+        data = jsonDecode(widget.datosRespuesta);
       } catch (_) {}
     }
 
-    // Verificación segura para evitar errores de tipo si viene vacío, es string o lista vacía
+    // Extracción segura del resumen financiero
     final dynamic rawResumen = data['resumen_financiero'];
     final Map<String, dynamic> resumenFinanciero = (rawResumen is List)
         ? (rawResumen.isNotEmpty && rawResumen[0] is Map
@@ -31,15 +38,20 @@ class CierreCajaForm extends StatelessWidget {
             ? Map<String, dynamic>.from(rawResumen)
             : (data.isNotEmpty ? data : {}));
 
+    // Listas adicionales correspondientes a los cursores del SP
     final List calzadosCantidad = data['calzado_cantidad'] ?? [];
+    final List detalleCaracteristicas = data['detalle_caracteristicas'] ?? [];
+    final List tipoCalzado = data['tipo_calzado'] ?? [];
     final List metodosPago = data['metodo_pago'] ?? [];
 
-    // Validar si realmente no hay información o movimiento registrado
+    // Validar si realmente no hay información o movimiento registrado en ningún cursor
     final bool sinMovimientos = resumenFinanciero.isEmpty ||
         ((resumenFinanciero['ingresos_totales'] ?? 0) == 0 &&
             (resumenFinanciero['total_gastos'] ?? 0) == 0 &&
             (resumenFinanciero['total_calzados_vendidos'] ?? 0) == 0 &&
             calzadosCantidad.isEmpty &&
+            detalleCaracteristicas.isEmpty &&
+            tipoCalzado.isEmpty &&
             metodosPago.isEmpty);
 
     return Scaffold(
@@ -57,7 +69,7 @@ class CierreCajaForm extends StatelessWidget {
             ],
           ),
         ),
-        child: datosRespuesta == null
+        child: widget.datosRespuesta == null
             ? const Center(
                 child: Text(
                   'No hay telemetría de cierre disponible.',
@@ -83,11 +95,25 @@ class CierreCajaForm extends StatelessWidget {
                           _buildPaymentMethodsList(metodosPago),
                           const SizedBox(height: 24),
                         ],
+                        if (tipoCalzado.isNotEmpty) ...[
+                          _buildSectionTitle('Ventas por Tipo de Calzado',
+                              Icons.category_rounded),
+                          const SizedBox(height: 12),
+                          _buildTipoCalzadoList(tipoCalzado),
+                          const SizedBox(height: 24),
+                        ],
                         if (calzadosCantidad.isNotEmpty) ...[
                           _buildSectionTitle(
                               'Demanda de Calzado', Icons.local_mall_rounded),
                           const SizedBox(height: 12),
                           _buildShoesList(calzadosCantidad),
+                          const SizedBox(height: 24),
+                        ],
+                        if (detalleCaracteristicas.isNotEmpty) ...[
+                          _buildSectionTitle('Detalle de Características',
+                              Icons.rule_folder_rounded),
+                          const SizedBox(height: 12),
+                          _buildDetalleCaracteristicasList(detalleCaracteristicas),
                           const SizedBox(height: 24),
                         ],
                         Center(
@@ -332,6 +358,9 @@ class CierreCajaForm extends StatelessWidget {
     final utilidad = res['utilidad_total_dia'] ?? 0;
     final pares = res['total_calzados_vendidos'] ?? 0;
 
+    final String valorUtilidad =
+        _mostrarUtilidad ? 'S/. $utilidad' : 'S/. ****';
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 14,
@@ -346,8 +375,17 @@ class CierreCajaForm extends StatelessWidget {
             Icons.trending_up_rounded,
             const Color(0xFF10B981),
             const Color(0xFFECFDF5)),
-        _buildMetricCard('Utilidad Neta', 'S/. $utilidad', Icons.bolt_rounded,
-            const Color(0xFF0284C7), const Color(0xFFE0F2FE)),
+        _buildMetricCardWithToggle(
+            'Utilidad Neta',
+            valorUtilidad,
+            Icons.bolt_rounded,
+            const Color(0xFF0284C7),
+            const Color(0xFFE0F2FE),
+            _mostrarUtilidad, () {
+          setState(() {
+            _mostrarUtilidad = !_mostrarUtilidad;
+          });
+        }),
         _buildMetricCard(
             'Gastos Operativos',
             'S/. $gastos',
@@ -415,6 +453,84 @@ class CierreCajaForm extends StatelessWidget {
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tarjeta de Utilidad Neta con rayito arriba y ojito abajo
+  Widget _buildMetricCardWithToggle(String title, String value, IconData icon,
+      Color accentColor, Color bgColor, bool isVisible, VoidCallback onToggle) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF64748B).withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: accentColor, size: 16),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                    color: const Color(0xFF64748B),
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -496,6 +612,65 @@ class CierreCajaForm extends StatelessWidget {
     );
   }
 
+  Widget _buildTipoCalzadoList(List tipos) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF64748B).withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: tipos.length,
+        separatorBuilder: (_, __) =>
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+        itemBuilder: (context, index) {
+          final item = tipos[index];
+          final tipo = item['tipo_calzado'] ?? 'Desconocido';
+          final cantidad = item['cantidad_vendida'] ?? 0;
+
+          return ListTile(
+            dense: true,
+            leading: const CircleAvatar(
+              backgroundColor: Color(0xFFFEF3C7),
+              child: Icon(Icons.category_rounded,
+                  color: Color(0xFFD97706), size: 16),
+            ),
+            title: Text(
+              tipo.toString().toUpperCase(),
+              style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$cantidad un.',
+                style: const TextStyle(
+                    color: Color(0xFFD97706),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildShoesList(List shoes) {
     return Container(
       decoration: BoxDecoration(
@@ -549,6 +724,73 @@ class CierreCajaForm extends StatelessWidget {
                 '$cantidad un.',
                 style: const TextStyle(
                     color: Color(0xFF9333EA),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDetalleCaracteristicasList(List detalles) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF64748B).withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: detalles.length,
+        separatorBuilder: (_, __) =>
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+        itemBuilder: (context, index) {
+          final item = detalles[index];
+          final nombre = item['nombre_calzado'] ?? 'Calzado';
+          final talla = item['talla'] ?? '-';
+          final taco = item['taco'] ?? '-';
+          final plataforma = item['plataforma'] ?? '-';
+          final colores = item['colores'] ?? '-';
+          final cantidad = item['cantidad'] ?? 0;
+
+          return ListTile(
+            dense: true,
+            leading: const CircleAvatar(
+              backgroundColor: Color(0xFFCCFBF1),
+              child: Icon(Icons.style_rounded,
+                  color: Color(0xFF0F766E), size: 16),
+            ),
+            title: Text(
+              nombre,
+              style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13),
+            ),
+            subtitle: Text(
+              'Talla: $talla | Taco: $taco | Plat.: $plataforma | Color: $colores',
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCCFBF1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$cantidad un.',
+                style: const TextStyle(
+                    color: Color(0xFF0F766E),
                     fontWeight: FontWeight.bold,
                     fontSize: 12),
               ),

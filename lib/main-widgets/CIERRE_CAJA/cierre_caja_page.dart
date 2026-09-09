@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
@@ -126,7 +128,12 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     try {
       final resultado = await CierreCajaService.obtenerCierrePorId(idCierre);
 
-      print(resultado);
+      const encoder = JsonEncoder.withIndent('  ');
+final prettyPrint = encoder.convert(resultado);
+
+// debugPrint fracciona los strings largos para que la consola no los trunque
+debugPrint('=== RESPUESTA COMPLETA DE CIERRE DE CAJA ===');
+debugPrint(prettyPrint);
 
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
