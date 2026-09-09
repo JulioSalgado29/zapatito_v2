@@ -700,12 +700,22 @@ class _VentaPageState extends State<VentaPage> {
                   children: [
                     const Icon(Icons.person, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
-                    Text(
-                      'Vendedor: ${filaData['usuario_creacion'] ?? 'Desconocido'}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        () {
+                          final vendedor =
+                              'Vendedor: ${filaData['usuario_creacion'] ?? 'Desconocido'}';
+                          if (vendedor.length > 23) {
+                            return '${vendedor.substring(0, 23)}...';
+                          }
+                          return vendedor;
+                        }(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

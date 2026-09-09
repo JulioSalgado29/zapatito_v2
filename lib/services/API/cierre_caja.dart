@@ -8,6 +8,7 @@ class CierreCajaService {
   static Future<Map<String, dynamic>?> cerrarPorCorreo({
     required String fecha,
     required String emailUser,
+    required String usuario,
   }) async {
     try {
       final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/correo');
@@ -18,6 +19,7 @@ class CierreCajaService {
         body: json.encode({
           'fecha': fecha,
           'email_user': emailUser,
+          'usuario': usuario,
         }),
       );
 
@@ -40,6 +42,7 @@ class CierreCajaService {
   static Future<Map<String, dynamic>?> cerrarPorTienda({
     required String fecha,
     required dynamic idTienda,
+    required String usuario,
   }) async {
     try {
       final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/tienda');
@@ -50,6 +53,7 @@ class CierreCajaService {
         body: json.encode({
           'fecha': fecha,
           'id_tienda': idTienda,
+          'usuario': usuario,
         }),
       );
 
@@ -69,9 +73,9 @@ class CierreCajaService {
 
   // 3. Obtener la lista general de todos los cierres de caja (Para la primera vista)
   // GET /api/cierre_caja/listar
-  static Future<List<Map<String, dynamic>>> obtenerHistorialCierres() async {
+  static Future<List<Map<String, dynamic>>> obtenerHistorialCierres(String inventarioId) async {
     try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/listar');
+      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/listar?id_inventario=$inventarioId');
 
       final response = await http.get(
         url,

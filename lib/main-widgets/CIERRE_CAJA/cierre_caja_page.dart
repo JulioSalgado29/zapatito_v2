@@ -1,120 +1,19 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
-import 'package:zapatito_v2/services/API/api_service.dart';
+import 'package:zapatito_v2/main-widgets/CIERRE_CAJA/cierre_caja_form.dart';
+import 'package:zapatito_v2/services/API/cierre_caja.dart';
 import 'package:zapatito_v2/services/API/tienda.dart';
 
-// ==========================================
-// SERVICIO
-// ==========================================
-class CierreCajaService {
-  static Future<List<Map<String, dynamic>>> obtenerHistorialCierres() async {
-    try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/listar');
-
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return List<Map<String, dynamic>>.from(data);
-      } else {
-        print('Error al listar el historial de cierres. Status code: ${response.statusCode}');
-        print('Respuesta del servidor: ${response.body}');
-        return [];
-      }
-    } catch (e) {
-      print('Error de red al listar historial de cierres: $e');
-      return [];
-    }
-  }
-
-  static Future<bool> ejecutarCierreCorreo({
-    required String fecha,
-    required String emailUser,
-    required String nombre,
-  }) async {
-    try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/correo');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'fecha': fecha,
-          'email_user': emailUser,
-          'nombre': nombre,
-        }),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Error en cierre por correo: $e');
-      return false;
-    }
-  }
-
-  static Future<bool> ejecutarCierreTienda({
-    required String fecha,
-    required dynamic idTienda,
-    required String usuarioCreacion,
-  }) async {
-    try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/tienda');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'fecha': fecha,
-          'id_tienda': idTienda,
-          'usuario_creacion': usuarioCreacion,
-        }),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Error en cierre por tienda: $e');
-      return false;
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> obtenerCorreosPorInventario(dynamic idInventario) async {
-    try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/inventario/$idInventario');
-
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return List<Map<String, dynamic>>.from(data);
-      } else {
-        print('Error al obtener correos por inventario. Status code: ${response.statusCode}');
-        print('Respuesta del servidor: ${response.body}');
-        return [];
-      }
-    } catch (e) {
-      print('Error de red al obtener correos por inventario: $e');
-      return [];
-    }
-  }
-}
-
-// ==========================================
-// VISTA (CierreCajaPage)
-// ==========================================
 class CierreCajaPage extends StatefulWidget {
   final String? firstName;
   final String? emailUser;
   final String? inventarioId;
 
   const CierreCajaPage({
-    super.key, 
-    this.firstName, 
-    this.emailUser, 
+    super.key,
+    this.firstName,
+    this.emailUser,
     this.inventarioId,
   });
 
@@ -123,7 +22,6 @@ class CierreCajaPage extends StatefulWidget {
 }
 
 class _CierreCajaPageState extends State<CierreCajaPage> {
-  // 🔹 Variables para el filtro de tiempo idéntico a venta_page
   String _filtroSeleccionado = 'Hoy';
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
@@ -134,7 +32,6 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     _actualizarFechasPorFiltro('Hoy');
   }
 
-  // 🔹 Lógica del filtro de tiempo idéntica a venta_page
   void _actualizarFechasPorFiltro(String filtro) {
     setState(() {
       _filtroSeleccionado = filtro;
@@ -152,7 +49,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
           break;
         case 'Últimos 7 días':
           _fechaInicio = ahora.subtract(const Duration(days: 6));
-          _fechaInicio = DateTime(_fechaInicio!.year, _fechaInicio!.month, _fechaInicio!.day, 0, 0, 0);
+          _fechaInicio = DateTime(_fechaInicio!.year, _fechaInicio!.month,
+              _fechaInicio!.day, 0, 0, 0);
           _fechaFin = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
           break;
         case 'Este Mes':
@@ -160,14 +58,15 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
           _fechaFin = DateTime(ahora.year, ahora.month + 1, 0, 23, 59, 59);
           break;
         case 'Personalizado':
-          _fechaInicio ??= DateTime(ahora.year, ahora.month, ahora.day, 0, 0, 0);
-          _fechaFin ??= DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
+          _fechaInicio ??=
+              DateTime(ahora.year, ahora.month, ahora.day, 0, 0, 0);
+          _fechaFin ??=
+              DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
           break;
       }
     });
   }
 
-  // 🔹 Selector de Rango Personalizado
   Future<void> _seleccionarRangoPersonalizado() async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
@@ -181,13 +80,14 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     if (picked != null) {
       setState(() {
         _filtroSeleccionado = 'Personalizado';
-        _fechaInicio = DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0);
-        _fechaFin = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+        _fechaInicio = DateTime(
+            picked.start.year, picked.start.month, picked.start.day, 0, 0, 0);
+        _fechaFin = DateTime(
+            picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
       });
     }
   }
 
-  // 🔹 Widget para los botones flotantes personalizados
   Widget _buildFab(
       Gradient gradient, String tag, VoidCallback onPressed, String label) {
     return SizedBox(
@@ -216,11 +116,12 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     );
   }
 
-  // 🔹 Acción para Cierre Personal (Lista usuarios por inventario, permite seleccionar usuario/correo y fecha con valor por defecto hoy)
   Future<void> _ejecutarCierrePersonal() async {
     if (widget.inventarioId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay un inventario asociado para buscar usuarios')),
+        const SnackBar(
+            content:
+                Text('No hay un inventario asociado para buscar usuarios')),
       );
       return;
     }
@@ -232,26 +133,32 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     );
 
     try {
-      final usuariosInventario = await CierreCajaService.obtenerCorreosPorInventario(widget.inventarioId!);
-      
+      final usuariosInventario =
+          await CierreCajaService.obtenerCorreosPorInventario(
+              widget.inventarioId!);
+
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
 
       if (usuariosInventario.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontraron usuarios asociados a este inventario')),
+          const SnackBar(
+              content: Text(
+                  'No se encontraron usuarios asociados a este inventario')),
         );
         return;
       }
 
-      String emailSeleccionado = usuariosInventario.first['email']?.toString() ?? '';
+      String emailSeleccionado =
+          usuariosInventario.first['email']?.toString() ?? '';
       DateTime fechaSeleccionada = DateTime.now();
 
       showDialog(
         context: context,
         builder: (BuildContext dialogContext) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Text('Configurar Cierre Personal'),
             content: StatefulBuilder(
               builder: (context, setStateModal) {
@@ -304,7 +211,9 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(fechaSeleccionada.toIso8601String().split('T')[0]),
+                            Text(fechaSeleccionada
+                                .toIso8601String()
+                                .split('T')[0]),
                             const Icon(Icons.calendar_today, size: 18),
                           ],
                         ),
@@ -317,7 +226,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.grey)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -333,31 +243,35 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                     builder: (_) => const SplashScreen02(),
                   );
 
-                  final fechaFormateada = fechaSeleccionada.toIso8601String().split('T')[0];
-                  
-                  final usuarioEncontrado = usuariosInventario.firstWhere(
-                    (u) => u['email'] == emailSeleccionado,
-                    orElse: () => {},
-                  );
-                  final nombreUsuario = usuarioEncontrado['nombre'] ?? widget.firstName ?? 'Administrador';
+                  final fechaFormateada =
+                      fechaSeleccionada.toIso8601String().split('T')[0];
 
-                  final exito = await CierreCajaService.ejecutarCierreCorreo(
+                  final resultado = await CierreCajaService.cerrarPorCorreo(
                     fecha: fechaFormateada,
                     emailUser: emailSeleccionado,
-                    nombre: nombreUsuario,
+                    usuario: widget.firstName ?? 'Administrador',
                   );
 
                   if (!mounted) return;
                   Navigator.of(context, rootNavigator: true).pop();
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(exito ? 'Cierre personal procesado con éxito' : 'Error al procesar el cierre personal'),
-                      backgroundColor: exito ? Colors.green.shade700 : Colors.red.shade700,
-                    ),
-                  );
-
-                  if (exito) setState(() {});
+                  if (resultado != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            CierreCajaForm(datosRespuesta: resultado),
+                      ),
+                    ).then((_) => setState(() {}));
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            const Text('Error al procesar el cierre personal'),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  }
                 },
                 child: const Text('Procesar'),
               ),
@@ -374,11 +288,11 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     }
   }
 
-  // 🔹 Acción para Cierre por Tienda (Permite seleccionar tienda, fecha con valor por defecto hoy)
   Future<void> _ejecutarCierreTiendaModal() async {
     if (widget.inventarioId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay un inventario asociado para buscar tiendas')),
+        const SnackBar(
+            content: Text('No hay un inventario asociado para buscar tiendas')),
       );
       return;
     }
@@ -390,14 +304,17 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
     );
 
     try {
-      final tiendas = await TiendaService.obtenerPorInventario(widget.inventarioId!);
-      
+      final tiendas =
+          await TiendaService.obtenerPorInventario(widget.inventarioId!);
+
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
 
       if (tiendas.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontraron tiendas asociadas a este inventario')),
+          const SnackBar(
+              content: Text(
+                  'No se encontraron tiendas asociadas a este inventario')),
         );
         return;
       }
@@ -409,7 +326,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
         context: context,
         builder: (BuildContext dialogContext) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Text('Configurar Cierre de Tienda'),
             content: StatefulBuilder(
               builder: (context, setStateModal) {
@@ -458,7 +376,9 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(fechaSeleccionada.toIso8601String().split('T')[0]),
+                            Text(fechaSeleccionada
+                                .toIso8601String()
+                                .split('T')[0]),
                             const Icon(Icons.calendar_today, size: 18),
                           ],
                         ),
@@ -471,7 +391,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.grey)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -487,24 +408,34 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                     builder: (_) => const SplashScreen02(),
                   );
 
-                  final fechaFormateada = fechaSeleccionada.toIso8601String().split('T')[0];
-                  final exito = await CierreCajaService.ejecutarCierreTienda(
+                  final fechaFormateada =
+                      fechaSeleccionada.toIso8601String().split('T')[0];
+                  final resultado = await CierreCajaService.cerrarPorTienda(
                     fecha: fechaFormateada,
                     idTienda: tiendaSeleccionadaId,
-                    usuarioCreacion: widget.firstName ?? 'Administrador',
+                    usuario: widget.firstName ?? 'Administrador',
                   );
 
                   if (!mounted) return;
                   Navigator.of(context, rootNavigator: true).pop();
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(exito ? 'Cierre de tienda procesado con éxito' : 'Error al procesar el cierre de tienda'),
-                      backgroundColor: exito ? Colors.green.shade700 : Colors.red.shade700,
-                    ),
-                  );
-
-                  if (exito) setState(() {});
+                  if (resultado != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            CierreCajaForm(datosRespuesta: resultado),
+                      ),
+                    ).then((_) => setState(() {}));
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            const Text('Error al procesar el cierre de tienda'),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  }
                 },
                 child: const Text('Procesar'),
               ),
@@ -527,7 +458,6 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
       appBar: Designwidgets().appBarMain('Cierre de Caja'),
       body: Column(
         children: [
-          // 🔹 Barra de Filtros de Tiempo
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: Colors.grey.shade100,
@@ -535,7 +465,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  ...['Hoy', 'Ayer', 'Últimos 7 días', 'Este Mes'].map((filtro) {
+                  ...['Hoy', 'Ayer', 'Últimos 7 días', 'Este Mes']
+                      .map((filtro) {
                     final seleccionado = _filtroSeleccionado == filtro;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
@@ -550,7 +481,9 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                   }),
                   ActionChip(
                     avatar: const Icon(Icons.date_range, size: 16),
-                    label: Text(_filtroSeleccionado == 'Personalizado' ? 'Personalizado' : 'Rango...'),
+                    label: Text(_filtroSeleccionado == 'Personalizado'
+                        ? 'Personalizado'
+                        : 'Rango...'),
                     onPressed: () async {
                       await _seleccionarRangoPersonalizado();
                     },
@@ -559,18 +492,18 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
               ),
             ),
           ),
-
-          // 🔹 Listado de Cierres filtrados por fecha de creación
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: CierreCajaService.obtenerHistorialCierres(),
+              future: CierreCajaService.obtenerHistorialCierres(
+                  widget.inventarioId ?? ''),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
-                  return const Center(child: Text('Error al cargar los registros'));
+                  return const Center(
+                      child: Text('Error al cargar los registros'));
                 }
 
                 final listaTotal = snapshot.data ?? [];
@@ -579,18 +512,25 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                   final String? fechaStr = data['fecha_creacion']?.toString();
                   if (fechaStr == null) return false;
 
-                  final String fechaItemStr = fechaStr.length >= 10 ? fechaStr.substring(0, 10) : fechaStr;
-                  
+                  final String fechaItemStr = fechaStr.length >= 10
+                      ? fechaStr.substring(0, 10)
+                      : fechaStr;
+
                   if (_fechaInicio == null || _fechaFin == null) return true;
 
-                  final String inicioStr = _fechaInicio!.toIso8601String().substring(0, 10);
-                  final String finStr = _fechaFin!.toIso8601String().substring(0, 10);
+                  final String inicioStr =
+                      _fechaInicio!.toIso8601String().substring(0, 10);
+                  final String finStr =
+                      _fechaFin!.toIso8601String().substring(0, 10);
 
-                  return fechaItemStr.compareTo(inicioStr) >= 0 && fechaItemStr.compareTo(finStr) <= 0;
+                  return fechaItemStr.compareTo(inicioStr) >= 0 &&
+                      fechaItemStr.compareTo(finStr) <= 0;
                 }).toList();
 
                 if (lista.isEmpty) {
-                  return const Center(child: Text('No hay registros de cierre para este periodo.'));
+                  return const Center(
+                      child: Text(
+                          'No hay registros de cierre para este periodo.'));
                 }
 
                 return ListView.builder(
@@ -598,17 +538,26 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                   itemCount: lista.length,
                   itemBuilder: (context, index) {
                     final data = lista[index];
-                    
-                    final String idCierre = data['id_cierre_caja']?.toString() ?? '';
-                    final String nombreCierre = data['nombre'] ?? 'Sin Nombre';
-                    final String usuario = data['usuario_creacion'] ?? 'Desconocido';
-                    final dynamic totalVentas = data['total_calzados_vendidos'] ?? 0;
-                    final double controlCaja = double.tryParse(data['control_caja']?.toString() ?? '0') ?? 0.0;
-                    
-                    final String fechaCierre = data['fecha_cierre']?.toString().split('T')[0] ?? '';
-                    final String fechaCreacion = data['fecha_creacion']?.toString().split('T')[0] ?? '';
 
-                    final Color colorControlCaja = controlCaja > 0 ? Colors.green.shade700 : Colors.red.shade700;
+                    final String idCierre =
+                        data['id_cierre_caja']?.toString() ?? '';
+                    final String nombreCierre = data['nombre'] ?? 'Sin Nombre';
+                    final String usuario =
+                        data['usuario_creacion'] ?? 'Desconocido';
+                    final dynamic totalVentas =
+                        data['total_calzados_vendidos'] ?? 0;
+                    final double controlCaja = double.tryParse(
+                            data['control_caja']?.toString() ?? '0') ??
+                        0.0;
+
+                    final String fechaCierre =
+                        data['fecha_cierre']?.toString().split('T')[0] ?? '';
+                    final String fechaCreacion =
+                        data['fecha_creacion']?.toString().split('T')[0] ?? '';
+
+                    final Color colorControlCaja = controlCaja > 0
+                        ? Colors.green.shade700
+                        : Colors.red.shade700;
 
                     return Card(
                       elevation: 3,
@@ -620,7 +569,9 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                         borderRadius: BorderRadius.circular(12),
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Seleccionaste el cierre ID: $idCierre (Próximamente detalle)')),
+                            SnackBar(
+                                content: Text(
+                                    'Seleccionaste el cierre ID: $idCierre (Próximamente detalle)')),
                           );
                         },
                         child: Padding(
@@ -629,7 +580,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -642,16 +594,20 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.blue.shade50,
                                       borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.blue.shade200),
+                                      border: Border.all(
+                                          color: Colors.blue.shade200),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(Icons.add_task, size: 12, color: Colors.blue.shade700),
+                                        Icon(Icons.add_task,
+                                            size: 12,
+                                            color: Colors.blue.shade700),
                                         const SizedBox(width: 4),
                                         Text(
                                           'Creado: $fechaCreacion',
@@ -670,7 +626,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.grey.shade200,
                                       borderRadius: BorderRadius.circular(6),
@@ -678,7 +635,9 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade700),
+                                        Icon(Icons.calendar_today,
+                                            size: 12,
+                                            color: Colors.grey.shade700),
                                         const SizedBox(width: 4),
                                         Text(
                                           'Cierre: $fechaCierre',
@@ -696,7 +655,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                               const SizedBox(height: 10),
                               Row(
                                 children: [
-                                  Icon(Icons.person_outline_rounded, size: 16, color: Colors.grey.shade600),
+                                  Icon(Icons.person_outline_rounded,
+                                      size: 16, color: Colors.grey.shade600),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
@@ -714,7 +674,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.grey.shade600),
+                                  Icon(Icons.shopping_bag_outlined,
+                                      size: 16, color: Colors.grey.shade600),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Cantidad total: $totalVentas pares',
@@ -729,7 +690,8 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                               const Divider(height: 20, thickness: 1),
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
                                 decoration: BoxDecoration(
                                   color: colorControlCaja.withOpacity(0.08),
                                   borderRadius: BorderRadius.circular(10),
@@ -739,12 +701,15 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                                   ),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Row(
                                       children: [
                                         Icon(
-                                          controlCaja > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                                          controlCaja > 0
+                                              ? Icons.trending_up_rounded
+                                              : Icons.trending_down_rounded,
                                           color: colorControlCaja,
                                           size: 26,
                                         ),
@@ -762,7 +727,7 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                                     Text(
                                       'S/ ${controlCaja.toStringAsFixed(2)}',
                                       style: TextStyle(
-                                          fontSize: 22,
+                                        fontSize: 22,
                                         fontWeight: FontWeight.bold,
                                         color: colorControlCaja,
                                       ),
