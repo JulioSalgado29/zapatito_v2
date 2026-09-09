@@ -250,6 +250,7 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                     fecha: fechaFormateada,
                     emailUser: emailSeleccionado,
                     usuario: widget.firstName ?? 'Administrador',
+                    idInventario: widget.inventarioId ?? '',
                   );
 
                   if (!mounted) return;
@@ -414,6 +415,7 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                     fecha: fechaFormateada,
                     idTienda: tiendaSeleccionadaId,
                     usuario: widget.firstName ?? 'Administrador',
+                    idInventario: widget.inventarioId ?? '',
                   );
 
                   if (!mounted) return;

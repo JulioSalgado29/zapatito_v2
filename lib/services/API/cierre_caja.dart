@@ -9,6 +9,7 @@ class CierreCajaService {
     required String fecha,
     required String emailUser,
     required String usuario,
+    required dynamic idInventario,
   }) async {
     try {
       final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/correo');
@@ -20,6 +21,7 @@ class CierreCajaService {
           'fecha': fecha,
           'email_user': emailUser,
           'usuario': usuario,
+          'id_inventario': idInventario,
         }),
       );
 
@@ -43,6 +45,7 @@ class CierreCajaService {
     required String fecha,
     required dynamic idTienda,
     required String usuario,
+    required dynamic idInventario,
   }) async {
     try {
       final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/tienda');
@@ -54,6 +57,7 @@ class CierreCajaService {
           'fecha': fecha,
           'id_tienda': idTienda,
           'usuario': usuario,
+          'id_inventario': idInventario,
         }),
       );
 
