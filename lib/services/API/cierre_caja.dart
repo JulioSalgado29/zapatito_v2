@@ -29,7 +29,8 @@ class CierreCajaService {
         final Map<String, dynamic> data = json.decode(response.body);
         return data;
       } else {
-        print('Error al realizar cierre por correo. Status code: ${response.statusCode}');
+        print(
+            'Error al realizar cierre por correo. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return null;
       }
@@ -65,7 +66,8 @@ class CierreCajaService {
         final Map<String, dynamic> data = json.decode(response.body);
         return data;
       } else {
-        print('Error al realizar cierre por tienda. Status code: ${response.statusCode}');
+        print(
+            'Error al realizar cierre por tienda. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return null;
       }
@@ -77,9 +79,11 @@ class CierreCajaService {
 
   // 3. Obtener la lista general de todos los cierres de caja (Para la primera vista)
   // GET /api/cierre_caja/listar
-  static Future<List<Map<String, dynamic>>> obtenerHistorialCierres(String inventarioId) async {
+  static Future<List<Map<String, dynamic>>> obtenerHistorialCierres(
+      String inventarioId) async {
     try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/listar?id_inventario=$inventarioId');
+      final url = Uri.parse(
+          '${ApiService.baseUrl}/api/cierre_caja/listar?id_inventario=$inventarioId');
 
       final response = await http.get(
         url,
@@ -90,7 +94,8 @@ class CierreCajaService {
         final List<dynamic> data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print('Error al listar el historial de cierres. Status code: ${response.statusCode}');
+        print(
+            'Error al listar el historial de cierres. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return [];
       }
@@ -102,9 +107,11 @@ class CierreCajaService {
 
   // 4. Obtener correos asociados a un inventario específico
   // GET /api/cierre_caja/inventario/:id
-  static Future<List<Map<String, dynamic>>> obtenerCorreosPorInventario(dynamic idInventario) async {
+  static Future<List<Map<String, dynamic>>> obtenerCorreosPorInventario(
+      dynamic idInventario) async {
     try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/cierre_caja/inventario/$idInventario');
+      final url = Uri.parse(
+          '${ApiService.baseUrl}/api/cierre_caja/inventario/$idInventario');
 
       final response = await http.get(
         url,
@@ -115,13 +122,42 @@ class CierreCajaService {
         final List<dynamic> data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print('Error al obtener correos por inventario. Status code: ${response.statusCode}');
+        print(
+            'Error al obtener correos por inventario. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return [];
       }
     } catch (e) {
       print('Error de red al obtener correos por inventario: $e');
       return [];
+    }
+  }
+
+  // 5. Obtener toda la información de un cierre de caja por su ID específico
+  // GET /api/cierre_caja/detalle/:id
+  static Future<Map<String, dynamic>?> obtenerCierrePorId(
+      dynamic idCierreCaja) async {
+    try {
+      final url = Uri.parse(
+          '${ApiService.baseUrl}/api/cierre_caja/detalle/$idCierreCaja');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return data;
+      } else {
+        print(
+            'Error al obtener el cierre de caja por ID. Status code: ${response.statusCode}');
+        print('Respuesta del servidor: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error de red al obtener el cierre de caja por ID: $e');
+      return null;
     }
   }
 }
