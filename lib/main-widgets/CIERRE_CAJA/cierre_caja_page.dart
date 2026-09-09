@@ -220,9 +220,10 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
                       value: emailSeleccionado,
                       items: usuariosInventario.map((u) {
                         final email = u['email']?.toString() ?? '';
+                        final nombre = u['nombre']?.toString() ?? '';
                         return DropdownMenuItem<String>(
                           value: email,
-                          child: Text(email),
+                          child: Text(nombre),
                         );
                       }).toList(),
                       onChanged: (v) {
