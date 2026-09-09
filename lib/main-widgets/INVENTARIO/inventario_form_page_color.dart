@@ -100,18 +100,22 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
   }
 
   void _agregarNuevoBloqueColor() {
-    _subfilasColor.add({
-      'id_color': null,
-      'color': '',
-      'cantidad_color': 0,
-      'minisubfilas': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'cantidad': 0,
-          'talla': 0,
-          'taco': 0,
-          'plataforma': null,
-        }
-      ]
+    setState(() {
+      _subfilasColor.add({
+        'id_color': null,
+        'color': '',
+        'cantidad_color': 0,
+        'minisubfilas': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'cantidad': 0,
+            'talla': 0,
+            'taco': 0,
+            'plataforma': null,
+          }
+        ]
+      });
+      _paginaActual =
+          1; // <--- Salta a la primera página para ver el nuevo bloque arriba
     });
   }
 
@@ -739,6 +743,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     bloque['cantidad_color'] = cantidadColor;
 
     return Card(
+      key: ValueKey(
+          'bloque_color_${colorIndex}_${bloque['color']}'), // <--- CORRECCIÓN CLAVE AQUÍ
       elevation: 2,
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
