@@ -21,13 +21,26 @@ class CierreCajaForm extends StatelessWidget {
       } catch (_) {}
     }
 
-    final resumenFinanciero = (data['resumen_financiero'] is List &&
-            (data['resumen_financiero'] as List).isNotEmpty)
-        ? data['resumen_financiero'][0]
-        : (data['resumen_financiero'] ?? data);
+    // Verificación segura para evitar errores de tipo si viene vacío, es string o lista vacía
+    final dynamic rawResumen = data['resumen_financiero'];
+    final Map<String, dynamic> resumenFinanciero = (rawResumen is List)
+        ? (rawResumen.isNotEmpty && rawResumen[0] is Map
+            ? Map<String, dynamic>.from(rawResumen[0])
+            : {})
+        : (rawResumen is Map
+            ? Map<String, dynamic>.from(rawResumen)
+            : (data.isNotEmpty ? data : {}));
 
     final List calzadosCantidad = data['calzado_cantidad'] ?? [];
     final List metodosPago = data['metodo_pago'] ?? [];
+
+    // Validar si realmente no hay información o movimiento registrado
+    final bool sinMovimientos = resumenFinanciero.isEmpty ||
+        ((resumenFinanciero['ingresos_totales'] ?? 0) == 0 &&
+            (resumenFinanciero['total_gastos'] ?? 0) == 0 &&
+            (resumenFinanciero['total_calzados_vendidos'] ?? 0) == 0 &&
+            calzadosCantidad.isEmpty &&
+            metodosPago.isEmpty);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -51,76 +64,183 @@ class CierreCajaForm extends StatelessWidget {
                   style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
                 ),
               )
-            : SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeroHeader(resumenFinanciero),
-                    const SizedBox(height: 24),
-                    _buildMetricsGrid(resumenFinanciero),
-                    const SizedBox(height: 24),
-                    if (metodosPago.isNotEmpty) ...[
-                      _buildSectionTitle('Flujo por Método de Pago',
-                          Icons.account_balance_wallet_rounded),
-                      const SizedBox(height: 12),
-                      _buildPaymentMethodsList(metodosPago),
-                      const SizedBox(height: 24),
-                    ],
-                    if (calzadosCantidad.isNotEmpty) ...[
-                      _buildSectionTitle(
-                          'Demanda de Calzado', Icons.local_mall_rounded),
-                      const SizedBox(height: 12),
-                      _buildShoesList(calzadosCantidad),
-                      const SizedBox(height: 24),
-                    ],
-                    Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.2),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            )
-                          ],
-                        ),
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0EA5E9),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30)),
-                            elevation: 0,
+            : sinMovimientos
+                ? _buildEmptyStateView(context)
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeroHeader(resumenFinanciero),
+                        const SizedBox(height: 24),
+                        _buildMetricsGrid(resumenFinanciero),
+                        const SizedBox(height: 24),
+                        if (metodosPago.isNotEmpty) ...[
+                          _buildSectionTitle('Flujo por Método de Pago',
+                              Icons.account_balance_wallet_rounded),
+                          const SizedBox(height: 12),
+                          _buildPaymentMethodsList(metodosPago),
+                          const SizedBox(height: 24),
+                        ],
+                        if (calzadosCantidad.isNotEmpty) ...[
+                          _buildSectionTitle(
+                              'Demanda de Calzado', Icons.local_mall_rounded),
+                          const SizedBox(height: 12),
+                          _buildShoesList(calzadosCantidad),
+                          const SizedBox(height: 24),
+                        ],
+                        Center(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFF0EA5E9).withOpacity(0.2),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                )
+                              ],
+                            ),
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0EA5E9),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 28, vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
+                                elevation: 0,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                              label: const Text(
+                                'REGRESAR AL SISTEMA',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2),
+                              ),
+                            ),
                           ),
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          label: const Text(
-                            'REGRESAR AL SISTEMA',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2),
-                          ),
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
+                  ),
       ),
     );
   }
 
-  Widget _buildHeroHeader(dynamic res) {
+  Widget _buildEmptyStateView(BuildContext context) {
+    final now = DateTime.now();
+    final fechaHoraActual = "${now.year.toString().padLeft(4, '0')}-"
+        "${now.month.toString().padLeft(2, '0')}-"
+        "${now.day.toString().padLeft(2, '0')} "
+        "${now.hour.toString().padLeft(2, '0')}:"
+        "${now.minute.toString().padLeft(2, '0')}:"
+        "${now.second.toString().padLeft(2, '0')}";
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2FE),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0EA5E9).withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  )
+                ],
+              ),
+              child: const Icon(
+                Icons.inbox_rounded,
+                size: 56,
+                color: Color(0xFF0284C7),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.access_time_rounded,
+                      size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(
+                    fechaHoraActual,
+                    style: const TextStyle(
+                      color: Color(0xFF475569),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'SIN MOVIMIENTOS REGISTRADOS',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'No se tuvo ningún movimiento operativo ni comercial para este cierre de caja el día de hoy.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0EA5E9),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text(
+                'REGRESAR AL SISTEMA',
+                style:
+                    TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroHeader(Map<String, dynamic> res) {
     final nombreCierre = res['nombre'] ?? 'Cierre General';
     final usuario = res['usuario_creacion'] ?? 'Sistema';
 
-    // Función nativa para obtener la fecha y hora actual del sistema en formato limpio (YYYY-MM-DD HH:mm:ss)
     final now = DateTime.now();
     final fechaHoraActual = "${now.year.toString().padLeft(4, '0')}-"
         "${now.month.toString().padLeft(2, '0')}-"
@@ -206,7 +326,7 @@ class CierreCajaForm extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricsGrid(dynamic res) {
+  Widget _buildMetricsGrid(Map<String, dynamic> res) {
     final ingresos = res['ingresos_totales'] ?? 0;
     final gastos = res['total_gastos'] ?? 0;
     final utilidad = res['utilidad_total_dia'] ?? 0;
