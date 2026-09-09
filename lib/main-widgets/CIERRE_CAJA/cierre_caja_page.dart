@@ -127,14 +127,14 @@ class _CierreCajaPageState extends State<CierreCajaPage> {
 
     try {
       final resultado = await CierreCajaService.obtenerCierrePorId(idCierre);
-
+/*
       const encoder = JsonEncoder.withIndent('  ');
-final prettyPrint = encoder.convert(resultado);
+      final prettyPrint = encoder.convert(resultado);
 
 // debugPrint fracciona los strings largos para que la consola no los trunque
-debugPrint('=== RESPUESTA COMPLETA DE CIERRE DE CAJA ===');
-debugPrint(prettyPrint);
-
+      debugPrint('=== RESPUESTA COMPLETA DE CIERRE DE CAJA ===');
+      debugPrint(prettyPrint);
+*/
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
 
@@ -148,7 +148,8 @@ debugPrint(prettyPrint);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Error al cargar el detalle del cierre de caja'),
+            content:
+                const Text('Error al cargar el detalle del cierre de caja'),
             backgroundColor: Colors.red.shade700,
           ),
         );
@@ -619,8 +620,7 @@ debugPrint(prettyPrint);
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
                                   child: Text(
@@ -638,8 +638,8 @@ debugPrint(prettyPrint);
                                   decoration: BoxDecoration(
                                     color: Colors.blue.shade50,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                        color: Colors.blue.shade200),
+                                    border:
+                                        Border.all(color: Colors.blue.shade200),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -781,14 +781,17 @@ debugPrint(prettyPrint);
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0EA5E9),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   elevation: 0,
                                 ),
-                                onPressed: () => _visualizarDetalleCierre(idCierre),
-                                icon: const Icon(Icons.visibility_rounded, size: 18),
+                                onPressed: () =>
+                                    _visualizarDetalleCierre(idCierre),
+                                icon: const Icon(Icons.visibility_rounded,
+                                    size: 18),
                                 label: const Text(
                                   'VISUALIZAR',
                                   style: TextStyle(
