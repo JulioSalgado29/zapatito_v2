@@ -743,8 +743,7 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
     bloque['cantidad_color'] = cantidadColor;
 
     return Card(
-      key: ValueKey(
-          'bloque_color_${colorIndex}_${bloque['color']}'), // <--- CORRECCIÓN CLAVE AQUÍ
+      key: ValueKey('bloque_color_$colorIndex'),
       elevation: 2,
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -774,18 +773,31 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                       });
                     },
                     onSelected: (Map<String, dynamic> seleccion) {
-                      setState(() {
-                        bloque['id_color'] =
-                            (seleccion['id_color'] ?? seleccion['id'])
-                                ?.toString();
-                        bloque['color'] =
-                            (seleccion['nombre'] ?? seleccion['color'])
-                                    ?.toString() ??
-                                '';
-                      });
+                      final nombreSeleccionado =
+                          (seleccion['nombre'] ?? seleccion['color'])
+                                  ?.toString() ??
+                              '';
+                      final idSeleccionado =
+                          (seleccion['id_color'] ?? seleccion['id'])
+                              ?.toString();
+
+                      if (bloque['color'] != nombreSeleccionado ||
+                          bloque['id_color'] != idSeleccionado) {
+                        setState(() {
+                          bloque['id_color'] = idSeleccionado;
+                          bloque['color'] = nombreSeleccionado;
+                        });
+                      }
                     },
                     fieldViewBuilder:
                         (context, controller, focusNode, onFieldSubmitted) {
+                      if (controller.text != (bloque['color'] ?? '')) {
+                        controller.text = bloque['color'] ?? '';
+                        controller.selection = TextSelection.fromPosition(
+                          TextPosition(offset: controller.text.length),
+                        );
+                      }
+
                       return TextFormField(
                         controller: controller,
                         focusNode: focusNode,
@@ -796,22 +808,25 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                           isDense: true,
                         ),
                         onChanged: (v) {
-                          setState(() {
-                            bloque['color'] = v;
-                            final coincidencia = _listaColores.firstWhere(
-                              (c) =>
-                                  (c['nombre'] ?? c['color'])
-                                      ?.toString()
-                                      .toLowerCase() ==
-                                  v.trim().toLowerCase(),
-                              orElse: () => {},
-                            );
-                            bloque['id_color'] = coincidencia.isNotEmpty
-                                ? (coincidencia['id_color'] ??
-                                        coincidencia['id'])
+                          bloque['color'] = v;
+                          final coincidencia = _listaColores.firstWhere(
+                            (c) =>
+                                (c['nombre'] ?? c['color'])
                                     ?.toString()
-                                : null;
-                          });
+                                    .toLowerCase() ==
+                                v.trim().toLowerCase(),
+                            orElse: () => {},
+                          );
+                          final nuevoId = coincidencia.isNotEmpty
+                              ? (coincidencia['id_color'] ?? coincidencia['id'])
+                                  ?.toString()
+                              : null;
+
+                          if (bloque['id_color'] != nuevoId) {
+                            setState(() {
+                              bloque['id_color'] = nuevoId;
+                            });
+                          }
                         },
                       );
                     },
@@ -995,7 +1010,8 @@ class _InventarioFormPageColorState extends State<InventarioFormPageColor> {
                         return const SizedBox(width: 32, height: 32);
                       },
                     ),
-                    title: Text(nombre, style: const TextStyle(color: Colors.black)),
+                    title: Text(nombre,
+                        style: const TextStyle(color: Colors.black)),
                     onTap: () => onSelected(doc),
                   );
                 },
