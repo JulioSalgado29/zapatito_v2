@@ -14,8 +14,35 @@ class CierreCajaForm extends StatefulWidget {
   State<CierreCajaForm> createState() => _CierreCajaFormState();
 }
 
-class _CierreCajaFormState extends State<CierreCajaForm> {
+class _CierreCajaFormState extends State<CierreCajaForm>
+    with SingleTickerProviderStateMixin {
   bool _mostrarUtilidad = false; // Estado para ocultar/mostrar la utilidad neta
+
+  late AnimationController _goldController;
+  late Animation<Color?> _goldColorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _goldController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _goldColorAnimation = ColorTween(
+      begin: Colors.white,
+      end: const Color.fromARGB(255, 229, 191, 4),
+    ).animate(CurvedAnimation(
+      parent: _goldController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _goldController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +140,8 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
                           _buildSectionTitle('Detalle de Características',
                               Icons.rule_folder_rounded),
                           const SizedBox(height: 12),
-                          _buildDetalleCaracteristicasList(detalleCaracteristicas),
+                          _buildDetalleCaracteristicasList(
+                              detalleCaracteristicas),
                           const SizedBox(height: 24),
                         ],
                         Center(
@@ -159,102 +187,86 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
   }
 
   Widget _buildEmptyStateView(BuildContext context) {
-    final now = DateTime.now();
-    final fechaHoraActual = "${now.year.toString().padLeft(4, '0')}-"
-        "${now.month.toString().padLeft(2, '0')}-"
-        "${now.day.toString().padLeft(2, '0')} "
-        "${now.hour.toString().padLeft(2, '0')}:"
-        "${now.minute.toString().padLeft(2, '0')}:"
-        "${now.second.toString().padLeft(2, '0')}";
-
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: const Color(0xFFE0F2FE),
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFE0F2FE),
+                    Color(0xFFBAE6FD),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: const Color(0xFF0EA5E9).withOpacity(0.2),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
                   )
                 ],
               ),
               child: const Icon(
-                Icons.inbox_rounded,
-                size: 56,
+                Icons.receipt_long_rounded,
+                size: 64,
                 color: Color(0xFF0284C7),
               ),
             ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFCBD5E1)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.access_time_rounded,
-                      size: 14, color: Color(0xFF64748B)),
-                  const SizedBox(width: 6),
-                  Text(
-                    fechaHoraActual,
-                    style: const TextStyle(
-                      color: Color(0xFF475569),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 28),
             const Text(
-              'SIN MOVIMIENTOS REGISTRADOS',
+              'SIN MOVIMIENTOS',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF0F172A),
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
+                letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'No se tuvo ningún movimiento operativo ni comercial para este cierre de caja el día de hoy.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF64748B),
-                fontSize: 14,
-                height: 1.4,
+            const SizedBox(height: 12),
+            const SizedBox(
+              width: 300,
+              child: Text(
+                'No se registraron movimientos operativos ni comerciales en este cierre de caja.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
               ),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0EA5E9),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
-                elevation: 0,
-              ),
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.arrow_back_rounded),
-              label: const Text(
-                'REGRESAR AL SISTEMA',
-                style:
-                    TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+            const SizedBox(height: 36),
+            SizedBox(
+              width: 260,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA5E9),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  shadowColor: const Color(0xFF0EA5E9).withOpacity(0.4),
+                ),
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                label: const Text(
+                  'REGRESAR',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
               ),
             ),
           ],
@@ -267,27 +279,25 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
     final nombreCierre = res['nombre'] ?? 'Cierre General';
     final usuario = res['usuario_creacion'] ?? 'Sistema';
 
-    final now = DateTime.now();
-    final fechaHoraActual = "${now.year.toString().padLeft(4, '0')}-"
-        "${now.month.toString().padLeft(2, '0')}-"
-        "${now.day.toString().padLeft(2, '0')} "
-        "${now.hour.toString().padLeft(2, '0')}:"
-        "${now.minute.toString().padLeft(2, '0')}:"
-        "${now.second.toString().padLeft(2, '0')}";
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0284C7),
+            Color(0xFF0369A1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF64748B).withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          )
+            color: const Color(0xFF0284C7).withOpacity(0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
       child: Column(
@@ -298,52 +308,80 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
             children: [
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                  ),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.access_time_rounded,
-                        size: 13, color: Color(0xFF0284C7)),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        fechaHoraActual,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF0284C7),
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Icon(
+                      Icons.shield_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'CIERRE DE CAJA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.point_of_sale_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            nombreCierre.toString().toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.1,
-            ),
+          const SizedBox(height: 18),
+          AnimatedBuilder(
+            animation: _goldColorAnimation,
+            builder: (context, child) {
+              return Text(
+                nombreCierre.toString().toUpperCase(),
+                style: TextStyle(
+                  color: _goldColorAnimation.value,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.1,
+                ),
+              );
+            },
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.verified_user_rounded,
-                  size: 14, color: Color(0xFF0284C7)),
+              const Icon(
+                Icons.account_circle_rounded,
+                size: 16,
+                color: Color(0xFFBAE6FD),
+              ),
               const SizedBox(width: 6),
               Text(
                 'Operador: $usuario',
-                style: const TextStyle(color: Color(0xFF475569), fontSize: 13),
+                style: const TextStyle(
+                  color: Color(0xFFBAE6FD),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -524,7 +562,9 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
                 child: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: Icon(
-                    isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                    isVisible
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
                     color: const Color(0xFF64748B),
                     size: 18,
                   ),
@@ -767,8 +807,8 @@ class _CierreCajaFormState extends State<CierreCajaForm> {
             dense: true,
             leading: const CircleAvatar(
               backgroundColor: Color(0xFFCCFBF1),
-              child: Icon(Icons.style_rounded,
-                  color: Color(0xFF0F766E), size: 16),
+              child:
+                  Icon(Icons.style_rounded, color: Color(0xFF0F766E), size: 16),
             ),
             title: Text(
               nombre,
