@@ -152,21 +152,25 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
         for (final url in urlsTemp.toSet()) {
           String? colorInferido;
 
-          // Decodificamos la URL para manejar espacios o caracteres especiales (%20, etc.)
-          final urlDecodificada = Uri.decodeFull(url).toLowerCase();
+          // Extraemos únicamente el nombre del archivo de la URL (ignorando carpetas como /C4/b/)
+          // para evitar que letras sueltas de la ruta activen falsos positivos.
+          final uriRuta = Uri.parse(url);
+          final nombreArchivo = uriRuta.pathSegments.isNotEmpty
+              ? Uri.decodeFull(uriRuta.pathSegments.last).toLowerCase()
+              : '';
 
-          // 1. Intentamos buscar si la URL contiene de forma única algún color no asignado aún
+          // 1. Intentamos buscar si el NOMBRE DEL ARCHIVO contiene de forma única algún color no asignado aún
           for (final color in coloresOrdenados) {
             final colorLower = color.toLowerCase();
             if (!coloresYaAsignados.contains(colorLower) &&
-                urlDecodificada.contains(colorLower)) {
+                nombreArchivo.contains(colorLower)) {
               colorInferido = color;
               coloresYaAsignados.add(colorLower);
               break;
             }
           }
 
-          // 2. Si no hubo coincidencia por la URL, asignamos el primer color disponible que aún no tenga foto
+          // 2. Si no hubo coincidencia por el nombre del archivo, asignamos el primer color disponible que aún no tenga foto
           if (colorInferido == null) {
             for (final color in _coloresDisponibles) {
               final colorLower = color.toLowerCase();
