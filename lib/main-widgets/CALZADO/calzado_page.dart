@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart' as pw;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
@@ -127,8 +130,43 @@ class _CalzadoPageState extends State<CalzadoPage> {
     });
   }
 
-  // Lógica completa para descargar imágenes de S3 y enviarlas por WhatsApp/Share
-  Future<void> _enviarImagenesPorWhatsApp() async {
+  // Menú flotante para elegir el formato de envío (Imágenes o PDF)
+  void _mostrarOpcionesEnvio() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image, color: Colors.blueAccent),
+                title: const Text('Enviar como Imágenes'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enviarImagenesPorWhatsApp(comoPdf: false);
+                },
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                title: const Text('Enviar como PDF'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enviarImagenesPorWhatsApp(comoPdf: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Lógica completa para descargar imágenes de S3 y enviarlas como imágenes individuales o PDF
+  Future<void> _enviarImagenesPorWhatsApp({required bool comoPdf}) async {
     if (_seleccionadosIds.isEmpty) return;
 
     _mostrarSplashScreen();
@@ -172,56 +210,106 @@ class _CalzadoPageState extends State<CalzadoPage> {
 
       // 1. Obtener directorio temporal del sistema
       final tempDir = await getTemporaryDirectory();
-      final List<XFile> xFiles = [];
 
-      // 2. Descargar cada una de las imágenes de S3 a la carpeta temporal
-      for (int i = 0; i < todasLasImagenesS3.length; i++) {
-        final url = todasLasImagenesS3[i];
-        final response = await http.get(Uri.parse(url));
+      if (comoPdf) {
+        // Generar archivo PDF
+        final pdf = pw.Document();
+        List<Uint8List> bytesImagenes = [];
 
-        if (response.statusCode == 200) {
-          String extension = '.jpg';
-          final urlLower = url.toLowerCase();
-          if (urlLower.contains('.png')) {
-            extension = '.png';
-          } else if (urlLower.contains('.webp')) {
-            extension = '.webp';
+        for (var url in todasLasImagenesS3) {
+          final response = await http.get(Uri.parse(url));
+          if (response.statusCode == 200) {
+            bytesImagenes.add(response.bodyBytes);
           }
-
-          final filePath =
-              '${tempDir.path}/calzado_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
-          final file = File(filePath);
-          await file.writeAsBytes(response.bodyBytes);
-
-          xFiles.add(XFile(filePath));
         }
-      }
 
-      _ocultarSplashScreen();
+        if (bytesImagenes.isEmpty) {
+          _ocultarSplashScreen();
+          return;
+        }
 
-      if (xFiles.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se pudieron descargar las imágenes ❌'),
-              duration: Duration(seconds: 2),
+        for (var imgBytes in bytesImagenes) {
+          final image = pw.MemoryImage(imgBytes);
+          pdf.addPage(
+            pw.Page(
+              pageFormat: pw.PdfPageFormat.a4,
+              build: (pw.Context context) {
+                return pw.Center(
+                  child: pw.Image(image, fit: pw.BoxFit.contain),
+                );
+              },
             ),
           );
         }
-        return;
+
+        final pdfPath =
+            '${tempDir.path}/catalogo_calzados_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        final pdfFile = File(pdfPath);
+        await pdfFile.writeAsBytes(await pdf.save());
+
+        _ocultarSplashScreen();
+
+        if (!mounted) return;
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        final Rect? sharePositionOrigin =
+            box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+
+        await Share.shareXFiles(
+          [XFile(pdfPath)],
+          text: 'Catálogo de calzados en PDF 👟📄',
+          sharePositionOrigin: sharePositionOrigin,
+        );
+      } else {
+        // Enviar como imágenes independientes
+        final List<XFile> xFiles = [];
+
+        for (int i = 0; i < todasLasImagenesS3.length; i++) {
+          final url = todasLasImagenesS3[i];
+          final response = await http.get(Uri.parse(url));
+
+          if (response.statusCode == 200) {
+            String extension = '.jpg';
+            final urlLower = url.toLowerCase();
+            if (urlLower.contains('.png')) {
+              extension = '.png';
+            } else if (urlLower.contains('.webp')) {
+              extension = '.webp';
+            }
+
+            final filePath =
+                '${tempDir.path}/calzado_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+            final file = File(filePath);
+            await file.writeAsBytes(response.bodyBytes);
+
+            xFiles.add(XFile(filePath));
+          }
+        }
+
+        _ocultarSplashScreen();
+
+        if (xFiles.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudieron descargar las imágenes ❌'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (!mounted) return;
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        final Rect? sharePositionOrigin =
+            box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+
+        await Share.shareXFiles(
+          xFiles,
+          text: 'Catálogo de calzados seleccionados 👟✨',
+          sharePositionOrigin: sharePositionOrigin,
+        );
       }
-
-      // 3. Disparar el menú nativo de compartir (permite seleccionar WhatsApp)
-      if (!mounted) return;
-      final RenderBox? box = context.findRenderObject() as RenderBox?;
-      final Rect? sharePositionOrigin =
-          box != null ? box.localToGlobal(Offset.zero) & box.size : null;
-
-      await Share.shareXFiles(
-        xFiles,
-        text: 'Catálogo de calzados seleccionados 👟✨',
-        sharePositionOrigin: sharePositionOrigin,
-      );
 
       _limpiarSeleccion();
     } catch (e) {
@@ -229,7 +317,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al procesar las imágenes: $e'),
+            content: Text('Error al procesar el envío: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -420,8 +508,8 @@ class _CalzadoPageState extends State<CalzadoPage> {
           ),
           IconButton(
             icon: const Icon(Icons.send_rounded, color: Colors.greenAccent),
-            tooltip: 'Enviar imágenes por WhatsApp',
-            onPressed: _enviarImagenesPorWhatsApp,
+            tooltip: 'Enviar imágenes o PDF',
+            onPressed: _mostrarOpcionesEnvio, // Cambiado para abrir el selector
           ),
         ],
       );
@@ -455,8 +543,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
               },
               decoration: InputDecoration(
                 hintText: 'Buscar por nombre de calzado...',
-                prefixIcon:
-                    const Icon(Icons.search, color: Colors.blueAccent),
+                prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, color: Colors.grey),
@@ -510,8 +597,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
                               final idCalzado = _obtenerIdCalzado(data);
                               final nombre = data['nombre'] ?? '';
                               final precio = double.tryParse(
-                                      data['precio_real']?.toString() ??
-                                          '0') ??
+                                      data['precio_real']?.toString() ?? '0') ??
                                   0.0;
                               final usuario = data['usuario_creacion'] ?? '';
                               final tipoId =
@@ -520,16 +606,15 @@ class _CalzadoPageState extends State<CalzadoPage> {
                               final plataforma = data['plataforma'] ?? false;
 
                               final icono = _mapaIconos[tipoId] ?? "❓";
-                              final bool mostrarAvisoPrecio = (precio <= 0 &&
-                                  widget.isAlmacenero == false);
+                              final bool mostrarAvisoPrecio =
+                                  (precio <= 0 && widget.isAlmacenero == false);
 
                               final bool estaSeleccionado =
                                   _seleccionadosIds.contains(idCalzado);
 
                               return Card(
                                 elevation: estaSeleccionado ? 6 : 3,
-                                margin:
-                                    const EdgeInsets.symmetric(vertical: 8),
+                                margin: const EdgeInsets.symmetric(vertical: 8),
                                 color: estaSeleccionado
                                     ? Colors.blue.shade50
                                     : Colors.white,
@@ -626,8 +711,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                 children: [
                                                   Icon(Icons.account_circle,
                                                       size: 14,
-                                                      color:
-                                                          Colors.grey[400]),
+                                                      color: Colors.grey[400]),
                                                   const SizedBox(width: 6),
                                                   Expanded(
                                                     child: Text.rich(
@@ -639,8 +723,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                             TextSpan(
                                                               text:
                                                                   'S/ ${precio.toStringAsFixed(2)}',
-                                                              style:
-                                                                  TextStyle(
+                                                              style: TextStyle(
                                                                 fontSize: 13,
                                                                 fontWeight:
                                                                     FontWeight
@@ -653,8 +736,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                             const TextSpan(
                                                               text: '  |  ',
                                                               style: TextStyle(
-                                                                  fontSize:
-                                                                      11,
+                                                                  fontSize: 11,
                                                                   color: Colors
                                                                       .grey),
                                                             ),
@@ -667,13 +749,12 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                             style: TextStyle(
                                                                 fontSize: 11,
                                                                 color: Colors
-                                                                        .grey[
-                                                                    500]),
+                                                                    .grey[500]),
                                                           ),
                                                         ],
                                                       ),
-                                                      overflow: TextOverflow
-                                                          .ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     ),
                                                   ),
                                                 ],
@@ -690,8 +771,8 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                     IconButton(
                                                       icon: const Icon(
                                                           Icons.edit,
-                                                          color: Colors
-                                                              .blueAccent,
+                                                          color:
+                                                              Colors.blueAccent,
                                                           size: 22),
                                                       onPressed: () =>
                                                           _navegarFormulario(
@@ -699,10 +780,9 @@ class _CalzadoPageState extends State<CalzadoPage> {
                                                     ),
                                                     IconButton(
                                                       icon: const Icon(
-                                                          Icons
-                                                              .delete_forever,
-                                                          color: Colors
-                                                              .redAccent,
+                                                          Icons.delete_forever,
+                                                          color:
+                                                              Colors.redAccent,
                                                           size: 22),
                                                       onPressed: () =>
                                                           _confirmarEliminacion(
@@ -729,7 +809,7 @@ class _CalzadoPageState extends State<CalzadoPage> {
           if (_todosLosCalzados.length >= 80) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                backgroundColor: Color(0xFFD32F2F), // Rojo elegante
+                backgroundColor: Color(0xFFD32F2F),
                 duration: Duration(seconds: 3),
                 content: Row(
                   children: [
