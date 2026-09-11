@@ -152,21 +152,39 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
         for (final url in urlsTemp.toSet()) {
           String? colorInferido;
 
+          final uriRuta = Uri.parse(url);
+
+          // 0. REGLA ESPECIAL: Intentar extraer del segmento exacto de la URL (/calzados/id/codigo/COLOR/)
+          if (uriRuta.pathSegments.length >= 4) {
+            final segmentoColor =
+                Uri.decodeFull(uriRuta.pathSegments[3]).toLowerCase();
+            for (final color in coloresOrdenados) {
+              final colorLower = color.toLowerCase();
+              if (segmentoColor == colorLower &&
+                  !coloresYaAsignados.contains(colorLower)) {
+                colorInferido = color;
+                coloresYaAsignados.add(colorLower);
+                break;
+              }
+            }
+          }
+
           // Extraemos únicamente el nombre del archivo de la URL (ignorando carpetas como /C4/b/)
           // para evitar que letras sueltas de la ruta activen falsos positivos.
-          final uriRuta = Uri.parse(url);
           final nombreArchivo = uriRuta.pathSegments.isNotEmpty
               ? Uri.decodeFull(uriRuta.pathSegments.last).toLowerCase()
               : '';
 
           // 1. Intentamos buscar si el NOMBRE DEL ARCHIVO contiene de forma única algún color no asignado aún
-          for (final color in coloresOrdenados) {
-            final colorLower = color.toLowerCase();
-            if (!coloresYaAsignados.contains(colorLower) &&
-                nombreArchivo.contains(colorLower)) {
-              colorInferido = color;
-              coloresYaAsignados.add(colorLower);
-              break;
+          if (colorInferido == null) {
+            for (final color in coloresOrdenados) {
+              final colorLower = color.toLowerCase();
+              if (!coloresYaAsignados.contains(colorLower) &&
+                  nombreArchivo.contains(colorLower)) {
+                colorInferido = color;
+                coloresYaAsignados.add(colorLower);
+                break;
+              }
             }
           }
 
@@ -183,6 +201,9 @@ class _CalzadoFormPageState extends State<CalzadoFormPage> {
           }
 
           // 3. Si aún así no hay colores libres, usamos 'General' o el nombre del color
+          print(colorInferido == null
+              ? 'No se pudo inferir un color único para la imagen: $url. Se asignará "General".'
+              : 'Imagen: $url -> Color inferido: $colorInferido');
           colorInferido ??= 'General';
 
           _listaImagenesColor.add(
