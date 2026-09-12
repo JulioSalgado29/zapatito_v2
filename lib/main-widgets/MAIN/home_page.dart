@@ -6,6 +6,7 @@ import 'package:zapatito_v2/main-widgets/COLORES/colores_page.dart';
 import 'package:zapatito_v2/main-widgets/DUENO_MUESTRA/dueno_muestra_page.dart';
 import 'package:zapatito_v2/main-widgets/GASTO/gasto_page.dart';
 import 'package:zapatito_v2/main-widgets/INVENTARIO/inventario_page.dart';
+import 'package:zapatito_v2/main-widgets/STOCK/stock_page.dart';
 import 'package:zapatito_v2/main-widgets/TIENDA/tienda_page.dart';
 import 'package:zapatito_v2/main-widgets/TIPO_CALZADO/tipo_calzado_page.dart';
 import 'package:zapatito_v2/main-widgets/VENTA/venta_page.dart';
@@ -183,6 +184,13 @@ class _HomePageState extends State<HomePage> {
                       page: CierreCajaPage(
                           firstName: firstName,
                           emailUser: emailUser,
+                          inventarioId: inventarioId),
+                    ),
+                  if (isAdmin || isVendedor || isAlmacenero)
+                    _buildMenuButton(
+                      context,
+                      label: 'Stock',
+                      page: StockPage(
                           inventarioId: inventarioId),
                     ),
                 ],
