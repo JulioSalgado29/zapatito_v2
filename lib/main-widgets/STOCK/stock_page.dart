@@ -19,10 +19,12 @@ class _StockPageState extends State<StockPage> {
   final TextEditingController _tallaController = TextEditingController();
   final TextEditingController _tacoController = TextEditingController();
   final TextEditingController _colorController = TextEditingController();
-  final TextEditingController _plataformaController =
-      TextEditingController(text: '0');
+  final TextEditingController _plataformaController = TextEditingController();
 
-  bool _mostrarFiltros = false;
+  final List<int> _listaTallasDisponibles = List.generate(22, (i) => i + 22);
+  final List<int> _listaTacosDisponibles = List.generate(15, (i) => i + 1);
+  final List<String> _listaPlataformasDisponibles = ['Bajo', 'Mediano', 'Alto'];
+
   bool _cargando = false;
 
   List<Map<String, dynamic>> _cabecera = [];
@@ -32,7 +34,7 @@ class _StockPageState extends State<StockPage> {
   String _filtroTalla = '';
   String _filtroTaco = '';
   String _filtroColor = '';
-  String _filtroPlataforma = '0';
+  String _filtroPlataforma = '';
 
   @override
   void initState() {
@@ -47,15 +49,19 @@ class _StockPageState extends State<StockPage> {
     });
     _tallaController.addListener(() {
       setState(() => _filtroTalla = _tallaController.text);
+      _ejecutarBusqueda();
     });
     _tacoController.addListener(() {
       setState(() => _filtroTaco = _tacoController.text);
+      _ejecutarBusqueda();
     });
     _colorController.addListener(() {
       setState(() => _filtroColor = _colorController.text);
+      _ejecutarBusqueda();
     });
     _plataformaController.addListener(() {
       setState(() => _filtroPlataforma = _plataformaController.text);
+      _ejecutarBusqueda();
     });
   }
 
@@ -103,7 +109,6 @@ class _StockPageState extends State<StockPage> {
           ? '0'
           : _plataformaController.text.trim();
 
-      // INVOCACIÓN CORREGIDA Y SEGURA
       final resultados = await StockService.filtrarInventario(
         idsCalzado: [],
         idsColor: colores,
@@ -141,12 +146,12 @@ class _StockPageState extends State<StockPage> {
       _tallaController.clear();
       _tacoController.clear();
       _colorController.clear();
-      _plataformaController.text = '0';
+      _plataformaController.clear();
       _searchQuery = '';
       _filtroTalla = '';
       _filtroTaco = '';
       _filtroColor = '';
-      _filtroPlataforma = '0';
+      _filtroPlataforma = '';
     });
     _ejecutarBusqueda();
   }
@@ -155,7 +160,157 @@ class _StockPageState extends State<StockPage> {
     return _filtroTalla.isNotEmpty ||
         _filtroTaco.isNotEmpty ||
         _filtroColor.isNotEmpty ||
-        (_filtroPlataforma.isNotEmpty && _filtroPlataforma != '0');
+        _filtroPlataforma.isNotEmpty;
+  }
+
+  void _mostrarSelectorOpciones({
+    required String titulo,
+    required TextEditingController controller,
+    required List<String> opciones,
+  }) {
+    List<String> seleccionadosTemp = controller.text.isNotEmpty
+        ? controller.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+        : [];
+
+    String buscadorDialogo = '';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final opcionesFiltradas = opciones.where((opcion) {
+              if (buscadorDialogo.isEmpty) return true;
+              return opcion.toLowerCase().contains(buscadorDialogo.toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: Text('Seleccionar $titulo', style: const TextStyle(fontSize: 16)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Buscar opción...',
+                        prefixIcon: Icon(Icons.search, size: 16),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          buscadorDialogo = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: opcionesFiltradas.length,
+                        itemBuilder: (context, index) {
+                          final opcion = opcionesFiltradas[index];
+                          final isSelected = seleccionadosTemp.contains(opcion);
+
+                          return CheckboxListTile(
+                            title: Text(opcion),
+                            value: isSelected,
+                            dense: true,
+                            onChanged: (bool? value) {
+                              setStateDialog(() {
+                                if (value == true) {
+                                  seleccionadosTemp.add(opcion);
+                                } else {
+                                  seleccionadosTemp.remove(opcion);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Actualizamos el texto y forzamos el listener cerrando el diálogo
+                    controller.text = seleccionadosTemp.join(', ');
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInputFiltroConPopup({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required List<String> opciones,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12),
+        prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (controller.text.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.clear, size: 16, color: Colors.grey),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => controller.clear(),
+              ),
+            if (opciones.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.arrow_drop_down_circle_outlined, size: 18, color: Colors.blueAccent),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                constraints: const BoxConstraints(),
+                onPressed: () => _mostrarSelectorOpciones(
+                  titulo: label,
+                  controller: controller,
+                  opciones: opciones,
+                ),
+              ),
+          ],
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+        ),
+      ),
+    );
   }
 
   Widget _buildIcon(String? icono) {
@@ -211,41 +366,6 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  Widget _buildInputFiltro({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      onChanged: (_) => _ejecutarBusqueda(),
-      style: const TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 12),
-        prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.inventarioId == null) {
@@ -274,153 +394,130 @@ class _StockPageState extends State<StockPage> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por calzado...',
-                      prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: () {
-                                _searchController.clear();
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  style: IconButton.styleFrom(
-                    backgroundColor: _tieneFiltrosActivos()
-                        ? Colors.blueAccent
-                        : Colors.grey.shade200,
-                    foregroundColor:
-                        _tieneFiltrosActivos() ? Colors.white : Colors.black87,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.all(14),
-                  ),
-                  icon: Icon(_mostrarFiltros ? Icons.filter_alt_off : Icons.filter_alt),
-                  onPressed: () {
-                    setState(() {
-                      _mostrarFiltros = !_mostrarFiltros;
-                    });
-                  },
-                ),
-              ],
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              height: _mostrarFiltros ? null : 0,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: _mostrarFiltros ? 1.0 : 0.0,
-                child: SingleChildScrollView(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade100),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInputFiltro(
-                                controller: _tallaController,
-                                label: 'Talla',
-                                icon: Icons.straighten,
-                                keyboardType: TextInputType.number,
-                              ),
+            // PANEL DE FILTROS GRANDES FIJOS ARRIBA
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Buscar calzado...',
+                            prefixIcon: const Icon(Icons.search, color: Colors.blueAccent, size: 18),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.grey, size: 16),
+                                    onPressed: () => _searchController.clear(),
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildInputFiltro(
-                                controller: _tacoController,
-                                label: 'Taco',
-                                icon: Icons.height,
-                                keyboardType: TextInputType.number,
-                              ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildInputFiltro(
-                                controller: _colorController,
-                                label: 'ID Color',
-                                icon: Icons.palette_outlined,
-                                keyboardType: TextInputType.number,
-                              ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInputFiltro(
-                                controller: _plataformaController,
-                                label: 'Plataforma',
-                                icon: Icons.layers,
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_tieneFiltrosActivos()) ...[
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: _limpiarFiltros,
-                              icon: const Icon(
-                                Icons.cleaning_services_rounded,
-                                size: 16,
-                                color: Colors.redAccent,
-                              ),
-                              label: const Text(
-                                'Limpiar Filtros',
-                                style: TextStyle(color: Colors.redAccent, fontSize: 12),
-                              ),
-                            ),
-                          )
-                        ]
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputFiltroConPopup(
+                          controller: _tallaController,
+                          label: 'Tallas',
+                          icon: Icons.straighten,
+                          opciones: _listaTallasDisponibles.map((e) => e.toString()).toList(),
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildInputFiltroConPopup(
+                          controller: _tacoController,
+                          label: 'Tacos',
+                          icon: Icons.height,
+                          opciones: _listaTacosDisponibles.map((e) => e.toString()).toList(),
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInputFiltroConPopup(
+                          controller: _plataformaController,
+                          label: 'Plataforma',
+                          icon: Icons.layers,
+                          opciones: _listaPlataformasDisponibles,
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildInputFiltroConPopup(
+                          controller: _colorController,
+                          label: 'ID Color',
+                          icon: Icons.palette_outlined,
+                          opciones: [],
+                          keyboardType: TextInputType.text,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_tieneFiltrosActivos()) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _limpiarFiltros,
+                        icon: const Icon(
+                          Icons.cleaning_services_rounded,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
+                        label: const Text(
+                          'Limpiar Filtros',
+                          style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                        ),
+                      ),
+                    )
+                  ]
+                ],
               ),
             ),
+
             if (_cargando)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
                 child: LinearProgressIndicator(minHeight: 2),
               ),
+
             const SizedBox(height: 10),
+
+            // LISTA DE RESULTADOS
             Expanded(
               child: cabeceraFiltrada.isEmpty
                   ? Center(
@@ -439,9 +536,9 @@ class _StockPageState extends State<StockPage> {
                         itemBuilder: (context, index) {
                           final item = cabeceraFiltrada[index];
                           final idCalzadoStr = item['id_calzado']?.toString() ?? '';
-                          final nombreCalzado = item['nombre_calzado'] ??
-                              item['nombre'] ??
-                              'Sin nombre';
+                          final nombreCalzado = item['nombre_calzado'] == null || item['nombre_calzado'].toString().trim().isEmpty
+                              ? (item['nombre'] ?? 'Sin nombre')
+                              : item['nombre_calzado'];
                           final icono = item['icono'] as String?;
                           final cantidadTotal = item['total_stock'] ??
                               item['cantidad'] ??
@@ -454,7 +551,7 @@ class _StockPageState extends State<StockPage> {
 
                           return Card(
                             margin: const EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 12),
+                                vertical: 8, horizontal: 0),
                             elevation: 3,
                             child: ExpansionTile(
                               leading: _buildIcon(icono),
@@ -554,7 +651,7 @@ class _StockPageState extends State<StockPage> {
                                           children: [
                                             if (taco != null)
                                               _buildInfoChip('Taco: $taco'),
-                                            if (plataforma != null &&
+                                            if (plataforma != null && plataforma != null &&
                                                 plataforma.toString() != '0')
                                               _buildInfoChip(
                                                   'Plataforma: $plataforma'),
