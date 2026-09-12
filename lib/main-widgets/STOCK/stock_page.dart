@@ -241,7 +241,6 @@ class _StockPageState extends State<StockPage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    // Actualizamos el texto y forzamos el listener cerrando el diálogo
                     controller.text = seleccionadosTemp.join(', ');
                     Navigator.pop(context);
                   },
@@ -260,59 +259,49 @@ class _StockPageState extends State<StockPage> {
     required String label,
     required IconData icon,
     required List<String> opciones,
-    TextInputType keyboardType = TextInputType.text,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 12),
-        prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
-        suffixIcon: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (controller.text.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.clear, size: 16, color: Colors.grey),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => controller.clear(),
-              ),
-            if (opciones.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.arrow_drop_down_circle_outlined, size: 18, color: Colors.blueAccent),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                constraints: const BoxConstraints(),
-                onPressed: () => _mostrarSelectorOpciones(
-                  titulo: label,
-                  controller: controller,
-                  opciones: opciones,
-                ),
-              ),
-          ],
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+    return GestureDetector(
+      onTap: opciones.isNotEmpty
+          ? () => _mostrarSelectorOpciones(
+                titulo: label,
+                controller: controller,
+                opciones: opciones,
+              )
+          : null,
+      child: AbsorbPointer(
+        child: TextField(
+          controller: controller,
+          readOnly: true,
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: const TextStyle(fontSize: 12),
+            prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
+            suffixIcon: opciones.isNotEmpty
+                ? const Icon(Icons.arrow_drop_down_circle_outlined, size: 18, color: Colors.blueAccent)
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+            ),
+          ),
         ),
       ),
     );
   }
-
+  
   Widget _buildIcon(String? icono) {
     if (icono == null || icono.isEmpty) {
       return const Icon(
@@ -443,22 +432,60 @@ class _StockPageState extends State<StockPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildInputFiltroConPopup(
-                          controller: _tallaController,
-                          label: 'Tallas',
-                          icon: Icons.straighten,
-                          opciones: _listaTallasDisponibles.map((e) => e.toString()).toList(),
-                          keyboardType: TextInputType.text,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputFiltroConPopup(
+                                controller: _tallaController,
+                                label: 'Tallas',
+                                icon: Icons.straighten,
+                                opciones: _listaTallasDisponibles.map((e) => e.toString()).toList(),
+                              ),
+                            ),
+                            if (_tallaController.text.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Limpiar Tallas',
+                                onPressed: () {
+                                  _tallaController.clear();
+                                  setState(() => _filtroTalla = '');
+                                  _ejecutarBusqueda();
+                                },
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildInputFiltroConPopup(
-                          controller: _tacoController,
-                          label: 'Tacos',
-                          icon: Icons.height,
-                          opciones: _listaTacosDisponibles.map((e) => e.toString()).toList(),
-                          keyboardType: TextInputType.text,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputFiltroConPopup(
+                                controller: _tacoController,
+                                label: 'Tacos',
+                                icon: Icons.height,
+                                opciones: _listaTacosDisponibles.map((e) => e.toString()).toList(),
+                              ),
+                            ),
+                            if (_tacoController.text.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Limpiar Tacos',
+                                onPressed: () {
+                                  _tacoController.clear();
+                                  setState(() => _filtroTaco = '');
+                                  _ejecutarBusqueda();
+                                },
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
@@ -467,22 +494,60 @@ class _StockPageState extends State<StockPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildInputFiltroConPopup(
-                          controller: _plataformaController,
-                          label: 'Plataforma',
-                          icon: Icons.layers,
-                          opciones: _listaPlataformasDisponibles,
-                          keyboardType: TextInputType.text,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputFiltroConPopup(
+                                controller: _plataformaController,
+                                label: 'Plataforma',
+                                icon: Icons.layers,
+                                opciones: _listaPlataformasDisponibles,
+                              ),
+                            ),
+                            if (_plataformaController.text.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Limpiar Plataforma',
+                                onPressed: () {
+                                  _plataformaController.clear();
+                                  setState(() => _filtroPlataforma = '');
+                                  _ejecutarBusqueda();
+                                },
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildInputFiltroConPopup(
-                          controller: _colorController,
-                          label: 'ID Color',
-                          icon: Icons.palette_outlined,
-                          opciones: [],
-                          keyboardType: TextInputType.text,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildInputFiltroConPopup(
+                                controller: _colorController,
+                                label: 'ID Color',
+                                icon: Icons.palette_outlined,
+                                opciones: [],
+                              ),
+                            ),
+                            if (_colorController.text.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Limpiar Color',
+                                onPressed: () {
+                                  _colorController.clear();
+                                  setState(() => _filtroColor = '');
+                                  _ejecutarBusqueda();
+                                },
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
@@ -651,7 +716,7 @@ class _StockPageState extends State<StockPage> {
                                           children: [
                                             if (taco != null)
                                               _buildInfoChip('Taco: $taco'),
-                                            if (plataforma != null && plataforma != null &&
+                                            if (plataforma != null &&
                                                 plataforma.toString() != '0')
                                               _buildInfoChip(
                                                   'Plataforma: $plataforma'),
