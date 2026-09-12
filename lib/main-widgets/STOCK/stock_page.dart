@@ -1,4 +1,13 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart' as pw;
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
+
+import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/stock.dart';
@@ -39,6 +48,10 @@ class _StockPageState extends State<StockPage> {
   String _filtroColor = '';
   String _filtroPlataforma = '';
 
+  // Conjunto para gestionar IDs seleccionados en la multiselección
+  final Set<String> _seleccionadosIds = {};
+  bool get _estaEnModoSeleccion => _seleccionadosIds.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +90,275 @@ class _StockPageState extends State<StockPage> {
     _colorController.dispose();
     _plataformaController.dispose();
     super.dispose();
+  }
+
+  // Método auxiliar para extraer el ID de cabecera de manera consistente
+  String _obtenerIdCalzado(Map<String, dynamic> item) {
+    final id = item['id_calzado'] ?? item['id'] ?? item['_id'];
+    return id?.toString() ?? '';
+  }
+
+  void _toggleSeleccion(String id) {
+    if (id.isEmpty) return;
+    setState(() {
+      if (_seleccionadosIds.contains(id)) {
+        _seleccionadosIds.remove(id);
+      } else {
+        _seleccionadosIds.add(id);
+      }
+    });
+  }
+
+  void _limpiarSeleccion() {
+    setState(() {
+      _seleccionadosIds.clear();
+    });
+  }
+
+  void _seleccionarTodos(List<Map<String, dynamic>> cabeceraVisibles) {
+    setState(() {
+      if (_seleccionadosIds.length == cabeceraVisibles.length) {
+        _seleccionadosIds.clear();
+      } else {
+        _seleccionadosIds.clear();
+        for (var c in cabeceraVisibles) {
+          final id = _obtenerIdCalzado(c);
+          if (id.isNotEmpty) {
+            _seleccionadosIds.add(id);
+          }
+        }
+      }
+    });
+  }
+
+  // Menú flotante para elegir el formato de envío (Imágenes o PDF)
+  void _mostrarOpcionesEnvio() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image, color: Colors.blueAccent),
+                title: const Text('Enviar como Imágenes'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enviarImagenesPorWhatsApp(comoPdf: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                title: const Text('Enviar como PDF'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _enviarImagenesPorWhatsApp(comoPdf: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Lógica completa para descargar imágenes de S3 y enviarlas como imágenes individuales o PDF
+  Future<void> _enviarImagenesPorWhatsApp({required bool comoPdf}) async {
+    if (_seleccionadosIds.isEmpty) return;
+
+    _mostrarSplashScreen();
+
+    try {
+      // 1. Extraer los IDs de los calzados seleccionados en formato int
+      final List<int> idsCalzadoSeleccionados = _seleccionadosIds
+          .map((id) => int.tryParse(id) ?? 0)
+          .where((id) => id > 0)
+          .toList();
+
+      // 2. Extraer los IDs de color que están activos en el filtro actual (_colorController)
+      final List<int> idsColorFiltro = _colorController.text.isNotEmpty
+          ? _colorController.text
+              .split(',')
+              .map((e) => int.tryParse(e.trim()) ?? 0)
+              .where((e) => e > 0)
+              .toList()
+          : [];
+
+      // 3. Obtener el ID del inventario actual
+      final int idInventario = int.tryParse(widget.inventarioId.toString()) ?? 0;
+
+      // 4. Llamar al servicio que consulta el endpoint de imágenes filtradas
+      final List<Map<String, dynamic>> imagenesDesdeApi =
+          await StockService.obtenerCalzadoImagenesFiltradas(
+        idInventario: idInventario,
+        idsColor: idsColorFiltro,
+        idsCalzado: idsCalzadoSeleccionados,
+      );
+
+      // 5. Recopilar las URLs de las imágenes devueltas por el servicio
+      List<String> todasLasImagenesS3 = [];
+
+      for (var item in imagenesDesdeApi) {
+        // Ajusta la clave según cómo retorne tu backend la imagen (ej. 'imagen', 'url', 'imagen_url', etc.)
+        final rawImagenes = item['imagenes_filtradas'] ?? item['imagen_url'] ?? item['url'] ?? item['icono'];
+        
+        if (rawImagenes is List) {
+          for (var img in rawImagenes) {
+            if (img is String && img.trim().isNotEmpty) {
+              todasLasImagenesS3.add(img.trim());
+            } else if (img is Map && img['url'] != null) {
+              todasLasImagenesS3.add(img['url'].toString().trim());
+            }
+          }
+        } else if (rawImagenes is String && rawImagenes.trim().isNotEmpty) {
+          todasLasImagenesS3.add(rawImagenes.trim());
+        }
+      }
+
+      if (todasLasImagenesS3.isEmpty) {
+        _ocultarSplashScreen();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Los elementos seleccionados no contienen imágenes ⚠️'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+
+      if (comoPdf) {
+        final pdf = pw.Document();
+        List<Uint8List> bytesImagenes = [];
+
+        for (var url in todasLasImagenesS3) {
+          try {
+            final response = await http.get(Uri.parse(url));
+            if (response.statusCode == 200) {
+              bytesImagenes.add(response.bodyBytes);
+            }
+          } catch (_) {}
+        }
+
+        if (bytesImagenes.isEmpty) {
+          _ocultarSplashScreen();
+          return;
+        }
+
+        for (var imgBytes in bytesImagenes) {
+          final image = pw.MemoryImage(imgBytes);
+          pdf.addPage(
+            pw.Page(
+              pageFormat: pw.PdfPageFormat.a4,
+              build: (pw.Context context) {
+                return pw.Center(
+                  child: pw.Image(image, fit: pw.BoxFit.contain),
+                );
+              },
+            ),
+          );
+        }
+
+        final pdfPath = '${tempDir.path}/catalogo_stock_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        final pdfFile = File(pdfPath);
+        await pdfFile.writeAsBytes(await pdf.save());
+
+        _ocultarSplashScreen();
+
+        if (!mounted) return;
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        final Rect? sharePositionOrigin =
+            box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+
+        await Share.shareXFiles(
+          [XFile(pdfPath)],
+          text: 'Catálogo de stock en PDF 👟📄',
+          sharePositionOrigin: sharePositionOrigin,
+        );
+      } else {
+        final List<XFile> xFiles = [];
+
+        for (int i = 0; i < todasLasImagenesS3.length; i++) {
+          final url = todasLasImagenesS3[i];
+          try {
+            final response = await http.get(Uri.parse(url));
+
+            if (response.statusCode == 200) {
+              String extension = '.jpg';
+              final urlLower = url.toLowerCase();
+              if (urlLower.contains('.png')) {
+                extension = '.png';
+              } else if (urlLower.contains('.webp')) {
+                extension = '.webp';
+              }
+
+              final filePath = '${tempDir.path}/stock_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+              final file = File(filePath);
+              await file.writeAsBytes(response.bodyBytes);
+
+              xFiles.add(XFile(filePath));
+            }
+          } catch (_) {}
+        }
+
+        _ocultarSplashScreen();
+
+        if (xFiles.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudieron descargar las imágenes ❌'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (!mounted) return;
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        final Rect? sharePositionOrigin =
+            box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+
+        await Share.shareXFiles(
+          xFiles,
+          text: 'Catálogo de stock seleccionado 👟✨',
+          sharePositionOrigin: sharePositionOrigin,
+        );
+      }
+
+      _limpiarSeleccion();
+    } catch (e) {
+      _ocultarSplashScreen();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al procesar el envío: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  void _mostrarSplashScreen() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const SplashScreen02(),
+    );
+  }
+
+  void _ocultarSplashScreen() {
+    if (Navigator.of(context, rootNavigator: true).canPop()) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
   }
 
   Future<void> _cargarColores() async {
@@ -468,6 +750,40 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
+  PreferredSizeWidget _buildAppBar(List<Map<String, dynamic>> cabeceraFiltrada) {
+    if (_estaEnModoSeleccion) {
+      return AppBar(
+        backgroundColor: const Color.fromARGB(255, 33, 47, 243),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: _limpiarSeleccion,
+        ),
+        title: Text(
+          '${_seleccionadosIds.length} seleccionados',
+          style: const TextStyle(color: Colors.white, fontSize: 18),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _seleccionadosIds.length == cabeceraFiltrada.length
+                  ? Icons.deselect
+                  : Icons.select_all,
+              color: Colors.white,
+            ),
+            tooltip: 'Seleccionar todos',
+            onPressed: () => _seleccionarTodos(cabeceraFiltrada),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send_rounded, color: Colors.greenAccent),
+            tooltip: 'Enviar imágenes o PDF',
+            onPressed: _mostrarOpcionesEnvio,
+          ),
+        ],
+      );
+    }
+    return Designwidgets().appBarMain("Stock de Inventario");
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.inventarioId == null) {
@@ -491,7 +807,7 @@ class _StockPageState extends State<StockPage> {
     }).toList();
 
     return Scaffold(
-      appBar: Designwidgets().appBarMain("Stock de Inventario"),
+      appBar: _buildAppBar(cabeceraFiltrada),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -734,7 +1050,7 @@ class _StockPageState extends State<StockPage> {
                         itemCount: cabeceraFiltrada.length,
                         itemBuilder: (context, index) {
                           final item = cabeceraFiltrada[index];
-                          final idCalzadoStr = item['id_calzado']?.toString() ?? '';
+                          final idCalzadoStr = _obtenerIdCalzado(item);
                           final nombreCalzado = item['nombre_calzado'] == null || item['nombre_calzado'].toString().trim().isEmpty
                               ? (item['nombre'] ?? 'Sin nombre')
                               : item['nombre_calzado'];
@@ -743,129 +1059,160 @@ class _StockPageState extends State<StockPage> {
                               item['cantidad'] ??
                               '0';
 
+                          final bool estaSeleccionado = _seleccionadosIds.contains(idCalzadoStr);
+
                           final subdetalles = _detalle.where((d) {
                             return (d['id_calzado']?.toString() ?? '') ==
                                 idCalzadoStr;
                           }).toList();
 
                           return Card(
+                            elevation: estaSeleccionado ? 6 : 3,
                             margin: const EdgeInsets.symmetric(
                                 vertical: 8, horizontal: 0),
-                            elevation: 3,
-                            child: ExpansionTile(
-                              leading: _buildIcon(icono),
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      nombreCalzado,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue[50],
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                          color: Colors.blue[200]!),
-                                    ),
-                                    child: Text(
-                                      'ID: $idCalzadoStr',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue[700],
+                            color: estaSeleccionado
+                                ? Colors.blue.shade50
+                                : Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: estaSeleccionado
+                                  ? const BorderSide(color: Colors.blueAccent, width: 2)
+                                  : BorderSide.none,
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onLongPress: () => _toggleSeleccion(idCalzadoStr),
+                              onTap: () {
+                                if (_estaEnModoSeleccion) {
+                                  _toggleSeleccion(idCalzadoStr);
+                                }
+                              },
+                              child: ExpansionTile(
+                                leading: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (_estaEnModoSeleccion)
+                                      Checkbox(
+                                        value: estaSeleccionado,
+                                        activeColor: Colors.blueAccent,
+                                        onChanged: (_) => _toggleSeleccion(idCalzadoStr),
+                                      ),
+                                    _buildIcon(icono),
+                                  ],
+                                ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        nombreCalzado,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              subtitle: Text('Cantidad total: $cantidadTotal'),
-                              children: subdetalles.isEmpty
-                                  ? const [
-                                      Padding(
-                                        padding: EdgeInsets.all(12.0),
-                                        child: Text(
-                                          'Sin detalles de stock registrados.',
-                                          style: TextStyle(color: Colors.grey),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: Colors.blue[200]!),
+                                      ),
+                                      child: Text(
+                                        'ID: $idCalzadoStr',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue[700],
                                         ),
                                       ),
-                                    ]
-                                  : subdetalles.map((sub) {
-                                      final cantSub = sub['stock_detalle'] ?? '0';
-                                      final talla = sub['talla'] ?? 'N/A';
-                                      final taco = sub['taco'];
-                                      final plataforma = sub['plataforma'];
-                                      final nombreColor = sub['nombre_color'] ??
-                                          sub['color'];
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Text('Cantidad total: $cantidadTotal'),
+                                children: subdetalles.isEmpty
+                                    ? const [
+                                        Padding(
+                                          padding: EdgeInsets.all(12.0),
+                                          child: Text(
+                                            'Sin detalles de stock registrados.',
+                                            style: TextStyle(color: Colors.grey),
+                                          ),
+                                        ),
+                                      ]
+                                    : subdetalles.map((sub) {
+                                        final cantSub = sub['stock_detalle'] ?? '0';
+                                        final talla = sub['talla'] ?? 'N/A';
+                                        final taco = sub['taco'];
+                                        final plataforma = sub['plataforma'];
+                                        final nombreColor = sub['nombre_color'] ??
+                                            sub['color'];
 
-                                      return ListTile(
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
-                                        ),
-                                        leading: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200],
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                        return ListTile(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8,
                                           ),
-                                          child: const Icon(
-                                            Icons.inventory_2_outlined,
-                                            color: Color(0xFF4E4E4E),
+                                          leading: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(
+                                              Icons.inventory_2_outlined,
+                                              color: Color(0xFF4E4E4E),
+                                            ),
                                           ),
-                                        ),
-                                        title: Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 4),
-                                          child: Row(
+                                          title: Padding(
+                                            padding:
+                                                const EdgeInsets.only(bottom: 4),
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  'Talla: $talla',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Text(
+                                                  'Cant: $cantSub',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.blueGrey,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          subtitle: Wrap(
+                                            spacing: 8,
+                                            runSpacing: 4,
                                             children: [
-                                              Text(
-                                                'Talla: $talla',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
+                                              if (taco != null)
+                                                _buildInfoChip('Taco: $taco'),
+                                              if (plataforma != null &&
+                                                  plataforma.toString() != '0')
+                                                _buildInfoChip(
+                                                    'Plataforma: $plataforma'),
+                                              if (nombreColor != null &&
+                                                  nombreColor
+                                                      .toString()
+                                                      .isNotEmpty)
+                                                _buildInfoChip(
+                                                  'Color: $nombreColor',
+                                                  isColor: true,
                                                 ),
-                                              ),
-                                              const Spacer(),
-                                              Text(
-                                                'Cant: $cantSub',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.blueGrey,
-                                                ),
-                                              ),
                                             ],
                                           ),
-                                        ),
-                                        subtitle: Wrap(
-                                          spacing: 8,
-                                          runSpacing: 4,
-                                          children: [
-                                            if (taco != null)
-                                              _buildInfoChip('Taco: $taco'),
-                                            if (plataforma != null &&
-                                                plataforma.toString() != '0')
-                                              _buildInfoChip(
-                                                  'Plataforma: $plataforma'),
-                                            if (nombreColor != null &&
-                                                nombreColor
-                                                    .toString()
-                                                    .isNotEmpty)
-                                              _buildInfoChip(
-                                                'Color: $nombreColor',
-                                                isColor: true,
-                                              ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
+                                        );
+                                      }).toList(),
+                              ),
                             ),
                           );
                         },
