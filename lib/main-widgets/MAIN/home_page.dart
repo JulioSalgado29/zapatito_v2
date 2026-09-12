@@ -88,112 +88,115 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             )
-          : Center(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    'Hola $firstName 👋',
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w500),
-                  ),
-                  Text(
-                    'Rol: $rolName',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 30),
-                  if (isAdmin || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Tiendas',
-                      page: TiendaPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
+          : SingleChildScrollView( // <-- Añadido aquí para permitir scroll en horizontal o pantallas chicas
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      'Hola $firstName 👋',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w500),
                     ),
-                  if (isAdmin || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Colores',
-                      page: ColoresPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
+                    Text(
+                      'Rol: $rolName',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
-                  if (isAdmin || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Dueños de Muestras',
-                      page: DuenoMuestraPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
-                    ),
-                  if (isAdmin || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Tipos de Calzados',
-                      page: TipoCalzadoPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
-                    ),
-                  if (isAdmin || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Códigos',
-                      page: CalzadoPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId,
-                          isAlmacenero: isAlmacenero),
-                    ),
-                  if (isAdmin || isAlmacenero || isVendedor)
-                    _buildMenuButton(
-                      context,
-                      label: 'Inventario',
-                      page: InventarioPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId,
-                          isVendedor: isVendedor),
-                    ),
-                  if (isAdmin || isVendedor || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Ventas',
-                      page: VentaPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
-                    ),
-                  if (isAdmin || isVendedor || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Gastos',
-                      page: GastoPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
-                    ),
-                  if (isAdmin)
-                    _buildMenuButton(
-                      context,
-                      label: 'Cierre de Caja',
-                      page: CierreCajaPage(
-                          firstName: firstName,
-                          emailUser: emailUser,
-                          inventarioId: inventarioId),
-                    ),
-                  if (isAdmin || isVendedor || isAlmacenero)
-                    _buildMenuButton(
-                      context,
-                      label: 'Stock',
-                      page: StockPage(
-                          inventarioId: inventarioId),
-                    ),
-                ],
+                    const SizedBox(height: 30),
+                    if (isAdmin || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Tiendas',
+                        page: TiendaPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Colores',
+                        page: ColoresPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Dueños de Muestras',
+                        page: DuenoMuestraPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Tipos de Calzados',
+                        page: TipoCalzadoPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Códigos',
+                        page: CalzadoPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId,
+                            isAlmacenero: isAlmacenero),
+                      ),
+                    if (isAdmin || isAlmacenero || isVendedor)
+                      _buildMenuButton(
+                        context,
+                        label: 'Inventario',
+                        page: InventarioPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId,
+                            isVendedor: isVendedor),
+                      ),
+                    if (isAdmin || isVendedor || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Ventas',
+                        page: VentaPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isVendedor || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Gastos',
+                        page: GastoPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin)
+                      _buildMenuButton(
+                        context,
+                        label: 'Cierre de Caja',
+                        page: CierreCajaPage(
+                            firstName: firstName,
+                            emailUser: emailUser,
+                            inventarioId: inventarioId),
+                      ),
+                    if (isAdmin || isVendedor || isAlmacenero)
+                      _buildMenuButton(
+                        context,
+                        label: 'Stock',
+                        page: StockPage(
+                            inventarioId: inventarioId),
+                      ),
+                  ],
+                ),
               ),
             ),
       drawer: Designwidgets().drawerHome(context, firstName ?? "Invitado"),
