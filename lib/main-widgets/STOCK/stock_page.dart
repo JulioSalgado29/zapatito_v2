@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart' as pw;
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
-
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/colores.dart';
@@ -34,7 +34,7 @@ class _StockPageState extends State<StockPage> {
   final List<int> _listaTallasDisponibles = List.generate(22, (i) => i + 22);
   final List<int> _listaTacosDisponibles = List.generate(15, (i) => i + 1);
   final List<String> _listaPlataformasDisponibles = ['Bajo', 'Mediano', 'Alto'];
-  
+
   List<Map<String, dynamic>> _listaColores = [];
 
   bool _cargando = false;
@@ -151,7 +151,8 @@ class _StockPageState extends State<StockPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                leading:
+                    const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
                 title: const Text('Enviar como PDF'),
                 onTap: () {
                   Navigator.pop(context);
@@ -165,20 +166,18 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // Lógica completa para descargar imágenes de S3 y enviarlas como imágenes individuales o PDF
+  // Lógica completa para descargar imágenes de S3 y enviarlas con diseño profesional en la primera página del PDF
   Future<void> _enviarImagenesPorWhatsApp({required bool comoPdf}) async {
     if (_seleccionadosIds.isEmpty) return;
 
     _mostrarSplashScreen();
 
     try {
-      // 1. Extraer los IDs de los calzados seleccionados en formato int
       final List<int> idsCalzadoSeleccionados = _seleccionadosIds
           .map((id) => int.tryParse(id) ?? 0)
           .where((id) => id > 0)
           .toList();
 
-      // 2. Extraer los IDs de color que están activos en el filtro actual (_colorController)
       final List<int> idsColorFiltro = _colorController.text.isNotEmpty
           ? _colorController.text
               .split(',')
@@ -187,10 +186,9 @@ class _StockPageState extends State<StockPage> {
               .toList()
           : [];
 
-      // 3. Obtener el ID del inventario actual
-      final int idInventario = int.tryParse(widget.inventarioId.toString()) ?? 0;
+      final int idInventario =
+          int.tryParse(widget.inventarioId.toString()) ?? 0;
 
-      // 4. Llamar al servicio que consulta el endpoint de imágenes filtradas
       final List<Map<String, dynamic>> imagenesDesdeApi =
           await StockService.obtenerCalzadoImagenesFiltradas(
         idInventario: idInventario,
@@ -198,13 +196,62 @@ class _StockPageState extends State<StockPage> {
         idsCalzado: idsCalzadoSeleccionados,
       );
 
-      // 5. Recopilar las URLs de las imágenes devueltas por el servicio
-      List<String> todasLasImagenesS3 = [];
+      // --- CONSTRUCCIÓN DE LEYENDA PARA WHATSAPP ---
+      final StringBuffer sbLeyenda = StringBuffer();
+      sbLeyenda.writeln('📋 *Catálogo de Stock Seleccionado* 👟✨\n');
 
+      for (var idStr in _seleccionadosIds) {
+        final itemCabecera = _cabecera.firstWhere(
+          (c) => _obtenerIdCalzado(c) == idStr,
+          orElse: () => {},
+        );
+
+        if (itemCabecera.isNotEmpty) {
+          final nombre = itemCabecera['nombre_calzado'] ??
+              itemCabecera['nombre'] ??
+              'Sin nombre';
+          final totalStock =
+              itemCabecera['total_stock'] ?? itemCabecera['cantidad'] ?? '0';
+
+          sbLeyenda.writeln('🔹 *${nombre.toString().trim()}*');
+          sbLeyenda.writeln('   📦 Cantidad total: $totalStock');
+
+          final subdetallesItem = _detalle.where((d) {
+            return (d['id_calzado']?.toString() ?? '') == idStr;
+          }).toList();
+
+          if (subdetallesItem.isNotEmpty) {
+            for (var sub in subdetallesItem) {
+              final talla = sub['talla'] ?? 'N/A';
+              final cantSub = sub['stock_detalle'] ?? '0';
+              final taco = sub['taco'];
+              final plataforma = sub['plataforma'];
+              final color = sub['nombre_color'] ?? sub['color'];
+
+              String detalleLinea = '      - Talla: $talla | Cant: $cantSub';
+              if (taco != null) detalleLinea += ' | Taco: $taco';
+              if (plataforma != null && plataforma.toString() != '0') {
+                detalleLinea += ' | Plat: $plataforma';
+              }
+              if (color != null && color.toString().isNotEmpty) {
+                detalleLinea += ' | Color: $color';
+              }
+
+              sbLeyenda.writeln(detalleLinea);
+            }
+          }
+          sbLeyenda.writeln('');
+        }
+      }
+
+      // Recopilar URLs de S3
+      List<String> todasLasImagenesS3 = [];
       for (var item in imagenesDesdeApi) {
-        // Ajusta la clave según cómo retorne tu backend la imagen (ej. 'imagen', 'url', 'imagen_url', etc.)
-        final rawImagenes = item['imagenes_filtradas'] ?? item['imagen_url'] ?? item['url'] ?? item['icono'];
-        
+        final rawImagenes = item['imagenes_filtradas'] ??
+            item['imagen_url'] ??
+            item['url'] ??
+            item['icono'];
+
         if (rawImagenes is List) {
           for (var img in rawImagenes) {
             if (img is String && img.trim().isNotEmpty) {
@@ -223,7 +270,8 @@ class _StockPageState extends State<StockPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Los elementos seleccionados no contienen imágenes ⚠️'),
+              content:
+                  Text('Los elementos seleccionados no contienen imágenes ⚠️'),
               duration: Duration(seconds: 2),
             ),
           );
@@ -251,6 +299,158 @@ class _StockPageState extends State<StockPage> {
           return;
         }
 
+        // 1. PRIMERA PÁGINA: Diseño profesional para la leyenda de stock
+        pdf.addPage(
+          pw.Page(
+            pageFormat: pw.PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.all(32),
+            build: (pw.Context context) {
+              List<pw.Widget> widgetsPdf = [];
+
+              // Encabezado estilizado
+              widgetsPdf.add(
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: const pw.BoxDecoration(
+                    color: PdfColors.blue800,
+                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'REPORTE DE STOCK SELECCIONADO',
+                        style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        'Zapatito v2',
+                        style: const pw.TextStyle(
+                          color: PdfColors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              widgetsPdf.add(pw.SizedBox(height: 16));
+
+              // Contenido estructurado por cada calzado
+              for (var idStr in _seleccionadosIds) {
+                final itemCabecera = _cabecera.firstWhere(
+                  (c) => _obtenerIdCalzado(c) == idStr,
+                  orElse: () => {},
+                );
+
+                if (itemCabecera.isNotEmpty) {
+                  final nombre = itemCabecera['nombre_calzado'] ??
+                      itemCabecera['nombre'] ??
+                      'Sin nombre';
+                  final totalStock = itemCabecera['total_stock'] ??
+                      itemCabecera['cantidad'] ??
+                      '0';
+
+                  final subdetallesItem = _detalle.where((d) {
+                    return (d['id_calzado']?.toString() ?? '') == idStr;
+                  }).toList();
+
+                  widgetsPdf.add(
+                    pw.Container(
+                      margin: const pw.EdgeInsets.only(bottom: 10),
+                      padding: const pw.EdgeInsets.all(10),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.grey100,
+                        border:
+                            pw.Border.all(color: PdfColors.blue200, width: 1),
+                        borderRadius:
+                            const pw.BorderRadius.all(pw.Radius.circular(6)),
+                      ),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Row(
+                            mainAxisAlignment:
+                                pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text(
+                                nombre.toString().trim(),
+                                style: pw.TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: PdfColors.blue900,
+                                ),
+                              ),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: const pw.BoxDecoration(
+                                  color: PdfColors.blue50,
+                                  borderRadius: pw.BorderRadius.all(
+                                      pw.Radius.circular(4)),
+                                ),
+                                child: pw.Text(
+                                  'Total: $totalStock',
+                                  style: pw.TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: PdfColors.blue700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (subdetallesItem.isNotEmpty) ...[
+                            pw.SizedBox(height: 6),
+                            pw.Divider(color: PdfColors.grey300, height: 1),
+                            pw.SizedBox(height: 6),
+                            ...subdetallesItem.map((sub) {
+                              final talla = sub['talla'] ?? 'N/A';
+                              final cantSub = sub['stock_detalle'] ?? '0';
+                              final taco = sub['taco'];
+                              final plataforma = sub['plataforma'];
+                              final color = sub['nombre_color'] ?? sub['color'];
+
+                              String detalles =
+                                  'Talla: $talla  |  Cant: $cantSub';
+                              if (taco != null) detalles += '  |  Taco: $taco';
+                              if (plataforma != null &&
+                                  plataforma.toString() != '0') {
+                                detalles += '  |  Plat: $plataforma';
+                              }
+                              if (color != null && color.toString().isNotEmpty) {
+                                detalles += '  |  Color: $color';
+                              }
+
+                              return pw.Padding(
+                                padding: const pw.EdgeInsets.only(bottom: 3),
+                                child: pw.Text(
+                                  '• $detalles',
+                                  style: const pw.TextStyle(
+                                      fontSize: 10, color: PdfColors.grey800),
+                                ),
+                              );
+                            }),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: widgetsPdf,
+              );
+            },
+          ),
+        );
+
+        // 2. PÁGINAS SIGUIENTES: Imágenes de los calzados seleccionados
         for (var imgBytes in bytesImagenes) {
           final image = pw.MemoryImage(imgBytes);
           pdf.addPage(
@@ -265,7 +465,8 @@ class _StockPageState extends State<StockPage> {
           );
         }
 
-        final pdfPath = '${tempDir.path}/catalogo_stock_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        final pdfPath =
+            '${tempDir.path}/catalogo_stock_${DateTime.now().millisecondsSinceEpoch}.pdf';
         final pdfFile = File(pdfPath);
         await pdfFile.writeAsBytes(await pdf.save());
 
@@ -278,7 +479,7 @@ class _StockPageState extends State<StockPage> {
 
         await Share.shareXFiles(
           [XFile(pdfPath)],
-          text: 'Catálogo de stock en PDF 👟📄',
+          text: 'Catálogo de stock en PDF con diseño profesional 👟📄',
           sharePositionOrigin: sharePositionOrigin,
         );
       } else {
@@ -298,7 +499,8 @@ class _StockPageState extends State<StockPage> {
                 extension = '.webp';
               }
 
-              final filePath = '${tempDir.path}/stock_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+              final filePath =
+                  '${tempDir.path}/stock_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
               final file = File(filePath);
               await file.writeAsBytes(response.bodyBytes);
 
@@ -328,7 +530,7 @@ class _StockPageState extends State<StockPage> {
 
         await Share.shareXFiles(
           xFiles,
-          text: 'Catálogo de stock seleccionado 👟✨',
+          text: sbLeyenda.toString(),
           sharePositionOrigin: sharePositionOrigin,
         );
       }
@@ -346,6 +548,7 @@ class _StockPageState extends State<StockPage> {
       }
     }
   }
+
   void _mostrarSplashScreen() {
     showDialog(
       context: context,
@@ -470,7 +673,11 @@ class _StockPageState extends State<StockPage> {
     required List<String> opciones,
   }) {
     List<String> seleccionadosTemp = controller.text.isNotEmpty
-        ? controller.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+        ? controller.text
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList()
         : [];
 
     String buscadorDialogo = '';
@@ -482,11 +689,14 @@ class _StockPageState extends State<StockPage> {
           builder: (context, setStateDialog) {
             final opcionesFiltradas = opciones.where((opcion) {
               if (buscadorDialogo.isEmpty) return true;
-              return opcion.toLowerCase().contains(buscadorDialogo.toLowerCase());
+              return opcion
+                  .toLowerCase()
+                  .contains(buscadorDialogo.toLowerCase());
             }).toList();
 
             return AlertDialog(
-              title: Text('Seleccionar $titulo', style: const TextStyle(fontSize: 16)),
+              title: Text('Seleccionar $titulo',
+                  style: const TextStyle(fontSize: 16)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
@@ -497,7 +707,8 @@ class _StockPageState extends State<StockPage> {
                         hintText: 'Buscar opción...',
                         prefixIcon: Icon(Icons.search, size: 16),
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (val) {
@@ -557,7 +768,11 @@ class _StockPageState extends State<StockPage> {
 
   void _mostrarSelectorColores() {
     List<String> seleccionadosTemp = _colorController.text.isNotEmpty
-        ? _colorController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+        ? _colorController.text
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList()
         : [];
 
     String buscadorDialogo = '';
@@ -569,12 +784,16 @@ class _StockPageState extends State<StockPage> {
           builder: (context, setStateDialog) {
             final coloresFiltrados = _listaColores.where((color) {
               if (buscadorDialogo.isEmpty) return true;
-              final nombre = (color['nombre'] ?? color['nombre_color'] ?? '').toString();
-              return nombre.toLowerCase().contains(buscadorDialogo.toLowerCase());
+              final nombre =
+                  (color['nombre'] ?? color['nombre_color'] ?? '').toString();
+              return nombre
+                  .toLowerCase()
+                  .contains(buscadorDialogo.toLowerCase());
             }).toList();
 
             return AlertDialog(
-              title: const Text('Seleccionar Colores', style: TextStyle(fontSize: 16)),
+              title: const Text('Seleccionar Colores',
+                  style: TextStyle(fontSize: 16)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
@@ -585,7 +804,8 @@ class _StockPageState extends State<StockPage> {
                         hintText: 'Buscar color...',
                         prefixIcon: Icon(Icons.search, size: 16),
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (val) {
@@ -601,9 +821,13 @@ class _StockPageState extends State<StockPage> {
                         itemCount: coloresFiltrados.length,
                         itemBuilder: (context, index) {
                           final colorItem = coloresFiltrados[index];
-                          final idColor = colorItem['id_color']?.toString() ?? '';
-                          final nombreColor = colorItem['nombre'] ?? colorItem['nombre_color'] ?? 'Sin nombre';
-                          final isSelected = seleccionadosTemp.contains(idColor);
+                          final idColor =
+                              colorItem['id_color']?.toString() ?? '';
+                          final nombreColor = colorItem['nombre'] ??
+                              colorItem['nombre_color'] ??
+                              'Sin nombre';
+                          final isSelected =
+                              seleccionadosTemp.contains(idColor);
 
                           return CheckboxListTile(
                             title: Text(nombreColor.toString()),
@@ -656,13 +880,14 @@ class _StockPageState extends State<StockPage> {
     VoidCallback? onTapCustom,
   }) {
     return GestureDetector(
-      onTap: onTapCustom ?? (opciones.isNotEmpty
-          ? () => _mostrarSelectorOpciones(
-                titulo: label,
-                controller: controller,
-                opciones: opciones,
-              )
-          : null),
+      onTap: onTapCustom ??
+          (opciones.isNotEmpty
+              ? () => _mostrarSelectorOpciones(
+                    titulo: label,
+                    controller: controller,
+                    opciones: opciones,
+                  )
+              : null),
       child: AbsorbPointer(
         child: TextField(
           controller: controller,
@@ -673,11 +898,13 @@ class _StockPageState extends State<StockPage> {
             labelStyle: const TextStyle(fontSize: 12),
             prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
             suffixIcon: (opciones.isNotEmpty || onTapCustom != null)
-                ? const Icon(Icons.arrow_drop_down_circle_outlined, size: 18, color: Colors.blueAccent)
+                ? const Icon(Icons.arrow_drop_down_circle_outlined,
+                    size: 18, color: Colors.blueAccent)
                 : null,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
             isDense: true,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -689,7 +916,8 @@ class _StockPageState extends State<StockPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+              borderSide:
+                  const BorderSide(color: Colors.blueAccent, width: 1.5),
             ),
           ),
         ),
@@ -729,28 +957,8 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  Widget _buildInfoChip(String text, {bool isColor = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isColor ? Colors.indigo[50] : Colors.grey[100],
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isColor ? Colors.indigo[100]! : Colors.grey[300]!,
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: isColor ? Colors.indigo[900] : Colors.black87,
-          fontWeight: isColor ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(List<Map<String, dynamic>> cabeceraFiltrada) {
+  PreferredSizeWidget _buildAppBar(
+      List<Map<String, dynamic>> cabeceraFiltrada) {
     if (_estaEnModoSeleccion) {
       return AppBar(
         backgroundColor: const Color.fromARGB(255, 33, 47, 243),
@@ -801,8 +1009,9 @@ class _StockPageState extends State<StockPage> {
     final query = _searchQuery.trim().toLowerCase();
     final cabeceraFiltrada = _cabecera.where((item) {
       if (query.isEmpty) return true;
-      final nombre =
-          (item['nombre_calzado'] ?? item['nombre'] ?? '').toString().toLowerCase();
+      final nombre = (item['nombre_calzado'] ?? item['nombre'] ?? '')
+          .toString()
+          .toLowerCase();
       return nombre.contains(query);
     }).toList();
 
@@ -828,28 +1037,34 @@ class _StockPageState extends State<StockPage> {
                           controller: _searchController,
                           decoration: InputDecoration(
                             hintText: 'Buscar calzado...',
-                            prefixIcon: const Icon(Icons.search, color: Colors.blueAccent, size: 18),
+                            prefixIcon: const Icon(Icons.search,
+                                color: Colors.blueAccent, size: 18),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear, color: Colors.grey, size: 16),
+                                    icon: const Icon(Icons.clear,
+                                        color: Colors.grey, size: 16),
                                     onPressed: () => _searchController.clear(),
                                   )
                                 : null,
                             filled: true,
                             fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 8),
                             isDense: true,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade300),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
+                              borderSide:
+                                  BorderSide(color: Colors.grey.shade300),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+                              borderSide: const BorderSide(
+                                  color: Colors.blueAccent, width: 1.5),
                             ),
                           ),
                         ),
@@ -867,13 +1082,16 @@ class _StockPageState extends State<StockPage> {
                                 controller: _tallaController,
                                 label: 'Tallas',
                                 icon: Icons.straighten,
-                                opciones: _listaTallasDisponibles.map((e) => e.toString()).toList(),
+                                opciones: _listaTallasDisponibles
+                                    .map((e) => e.toString())
+                                    .toList(),
                               ),
                             ),
                             if (_tallaController.text.isNotEmpty) ...[
                               const SizedBox(width: 4),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                icon: const Icon(Icons.close,
+                                    size: 16, color: Colors.redAccent),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 tooltip: 'Limpiar Tallas',
@@ -896,13 +1114,16 @@ class _StockPageState extends State<StockPage> {
                                 controller: _tacoController,
                                 label: 'Tacos',
                                 icon: Icons.height,
-                                opciones: _listaTacosDisponibles.map((e) => e.toString()).toList(),
+                                opciones: _listaTacosDisponibles
+                                    .map((e) => e.toString())
+                                    .toList(),
                               ),
                             ),
                             if (_tacoController.text.isNotEmpty) ...[
                               const SizedBox(width: 4),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                icon: const Icon(Icons.close,
+                                    size: 16, color: Colors.redAccent),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 tooltip: 'Limpiar Tacos',
@@ -935,7 +1156,8 @@ class _StockPageState extends State<StockPage> {
                             if (_plataformaController.text.isNotEmpty) ...[
                               const SizedBox(width: 4),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                icon: const Icon(Icons.close,
+                                    size: 16, color: Colors.redAccent),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 tooltip: 'Limpiar Plataforma',
@@ -958,7 +1180,10 @@ class _StockPageState extends State<StockPage> {
                                 builder: (context) {
                                   String textoVisual = '';
                                   if (_colorController.text.isNotEmpty) {
-                                    List<String> ids = _colorController.text.split(',').map((e) => e.trim()).toList();
+                                    List<String> ids = _colorController.text
+                                        .split(',')
+                                        .map((e) => e.trim())
+                                        .toList();
                                     List<String> nombres = [];
                                     for (var id in ids) {
                                       final match = _listaColores.firstWhere(
@@ -966,13 +1191,16 @@ class _StockPageState extends State<StockPage> {
                                         orElse: () => {},
                                       );
                                       if (match.isNotEmpty) {
-                                        nombres.add(match['nombre'] ?? match['nombre_color'] ?? id);
+                                        nombres.add(match['nombre'] ??
+                                            match['nombre_color'] ??
+                                            id);
                                       }
                                     }
                                     textoVisual = nombres.join(', ');
                                   }
 
-                                  final controllerVisual = TextEditingController(text: textoVisual);
+                                  final controllerVisual =
+                                      TextEditingController(text: textoVisual);
 
                                   return _buildInputFiltroConPopup(
                                     controller: controllerVisual,
@@ -987,7 +1215,8 @@ class _StockPageState extends State<StockPage> {
                             if (_colorController.text.isNotEmpty) ...[
                               const SizedBox(width: 4),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                icon: const Icon(Icons.close,
+                                    size: 16, color: Colors.redAccent),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 tooltip: 'Limpiar Color',
@@ -1016,7 +1245,8 @@ class _StockPageState extends State<StockPage> {
                         ),
                         label: const Text(
                           'Limpiar Filtros',
-                          style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                          style:
+                              TextStyle(color: Colors.redAccent, fontSize: 12),
                         ),
                       ),
                     )
@@ -1024,15 +1254,12 @@ class _StockPageState extends State<StockPage> {
                 ],
               ),
             ),
-
             if (_cargando)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
                 child: LinearProgressIndicator(minHeight: 2),
               ),
-
             const SizedBox(height: 10),
-
             Expanded(
               child: cabeceraFiltrada.isEmpty
                   ? Center(
@@ -1051,15 +1278,20 @@ class _StockPageState extends State<StockPage> {
                         itemBuilder: (context, index) {
                           final item = cabeceraFiltrada[index];
                           final idCalzadoStr = _obtenerIdCalzado(item);
-                          final nombreCalzado = item['nombre_calzado'] == null || item['nombre_calzado'].toString().trim().isEmpty
-                              ? (item['nombre'] ?? 'Sin nombre')
-                              : item['nombre_calzado'];
+                          final nombreCalzado =
+                              item['nombre_calzado'] == null ||
+                                      item['nombre_calzado']
+                                          .toString()
+                                          .trim()
+                                          .isEmpty
+                                  ? (item['nombre'] ?? 'Sin nombre')
+                                  : item['nombre_calzado'];
                           final icono = item['icono'] as String?;
-                          final cantidadTotal = item['total_stock'] ??
-                              item['cantidad'] ??
-                              '0';
+                          final cantidadTotal =
+                              item['total_stock'] ?? item['cantidad'] ?? '0';
 
-                          final bool estaSeleccionado = _seleccionadosIds.contains(idCalzadoStr);
+                          final bool estaSeleccionado =
+                              _seleccionadosIds.contains(idCalzadoStr);
 
                           final subdetalles = _detalle.where((d) {
                             return (d['id_calzado']?.toString() ?? '') ==
@@ -1076,7 +1308,8 @@ class _StockPageState extends State<StockPage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                               side: estaSeleccionado
-                                  ? const BorderSide(color: Colors.blueAccent, width: 2)
+                                  ? const BorderSide(
+                                      color: Colors.blueAccent, width: 2)
                                   : BorderSide.none,
                             ),
                             child: InkWell(
@@ -1095,59 +1328,38 @@ class _StockPageState extends State<StockPage> {
                                       Checkbox(
                                         value: estaSeleccionado,
                                         activeColor: Colors.blueAccent,
-                                        onChanged: (_) => _toggleSeleccion(idCalzadoStr),
+                                        onChanged: (_) =>
+                                            _toggleSeleccion(idCalzadoStr),
                                       ),
                                     _buildIcon(icono),
                                   ],
                                 ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        nombreCalzado,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: Colors.blue[200]!),
-                                      ),
-                                      child: Text(
-                                        'ID: $idCalzadoStr',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue[700],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                title: Text(
+                                  nombreCalzado,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
-                                subtitle: Text('Cantidad total: $cantidadTotal'),
+                                subtitle:
+                                    Text('Cantidad total: $cantidadTotal'),
                                 children: subdetalles.isEmpty
                                     ? const [
                                         Padding(
                                           padding: EdgeInsets.all(12.0),
                                           child: Text(
                                             'Sin detalles de stock registrados.',
-                                            style: TextStyle(color: Colors.grey),
+                                            style:
+                                                TextStyle(color: Colors.grey),
                                           ),
                                         ),
                                       ]
                                     : subdetalles.map((sub) {
-                                        final cantSub = sub['stock_detalle'] ?? '0';
+                                        final cantSub =
+                                            sub['stock_detalle'] ?? '0';
                                         final talla = sub['talla'] ?? 'N/A';
                                         final taco = sub['taco'];
                                         final plataforma = sub['plataforma'];
-                                        final nombreColor = sub['nombre_color'] ??
-                                            sub['color'];
+                                        final nombreColor =
+                                            sub['nombre_color'] ?? sub['color'];
 
                                         return ListTile(
                                           contentPadding:
@@ -1168,8 +1380,8 @@ class _StockPageState extends State<StockPage> {
                                             ),
                                           ),
                                           title: Padding(
-                                            padding:
-                                                const EdgeInsets.only(bottom: 4),
+                                            padding: const EdgeInsets.only(
+                                                bottom: 4),
                                             child: Row(
                                               children: [
                                                 Text(
@@ -1195,18 +1407,79 @@ class _StockPageState extends State<StockPage> {
                                             runSpacing: 4,
                                             children: [
                                               if (taco != null)
-                                                _buildInfoChip('Taco: $taco'),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[100],
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                    border: Border.all(
+                                                        color:
+                                                            Colors.grey[300]!),
+                                                  ),
+                                                  child: Text(
+                                                    'Taco: $taco',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
                                               if (plataforma != null &&
                                                   plataforma.toString() != '0')
-                                                _buildInfoChip(
-                                                    'Plataforma: $plataforma'),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[100],
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                    border: Border.all(
+                                                        color:
+                                                            Colors.grey[300]!),
+                                                  ),
+                                                  child: Text(
+                                                    'Plataforma: $plataforma',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
                                               if (nombreColor != null &&
                                                   nombreColor
                                                       .toString()
                                                       .isNotEmpty)
-                                                _buildInfoChip(
-                                                  'Color: $nombreColor',
-                                                  isColor: true,
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.indigo[50],
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                    border: Border.all(
+                                                        color: Colors
+                                                            .indigo[100]!),
+                                                  ),
+                                                  child: Text(
+                                                    'Color: $nombreColor',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.indigo[900],
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
                                                 ),
                                             ],
                                           ),
