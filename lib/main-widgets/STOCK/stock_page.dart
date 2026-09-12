@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:zapatito_v2/components/widgets.dart';
+import 'package:zapatito_v2/services/API/colores.dart';
 import 'package:zapatito_v2/services/API/stock.dart';
 
 class StockPage extends StatefulWidget {
@@ -24,6 +25,8 @@ class _StockPageState extends State<StockPage> {
   final List<int> _listaTallasDisponibles = List.generate(22, (i) => i + 22);
   final List<int> _listaTacosDisponibles = List.generate(15, (i) => i + 1);
   final List<String> _listaPlataformasDisponibles = ['Bajo', 'Mediano', 'Alto'];
+  
+  List<Map<String, dynamic>> _listaColores = [];
 
   bool _cargando = false;
 
@@ -40,6 +43,7 @@ class _StockPageState extends State<StockPage> {
   void initState() {
     super.initState();
     _escucharControladores();
+    _cargarColores();
     _ejecutarBusqueda();
   }
 
@@ -73,6 +77,21 @@ class _StockPageState extends State<StockPage> {
     _colorController.dispose();
     _plataformaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarColores() async {
+    if (widget.inventarioId == null) return;
+    try {
+      final colores = await ColoresService.obtenerPorInventario(
+          widget.inventarioId.toString());
+      if (mounted) {
+        setState(() {
+          _listaColores = colores;
+        });
+      }
+    } catch (e) {
+      print('Error al cargar la lista de colores: $e');
+    }
   }
 
   Future<void> _ejecutarBusqueda() async {
@@ -254,20 +273,114 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
+  void _mostrarSelectorColores() {
+    List<String> seleccionadosTemp = _colorController.text.isNotEmpty
+        ? _colorController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+        : [];
+
+    String buscadorDialogo = '';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final coloresFiltrados = _listaColores.where((color) {
+              if (buscadorDialogo.isEmpty) return true;
+              final nombre = (color['nombre'] ?? color['nombre_color'] ?? '').toString();
+              return nombre.toLowerCase().contains(buscadorDialogo.toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Seleccionar Colores', style: TextStyle(fontSize: 16)),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Buscar color...',
+                        prefixIcon: Icon(Icons.search, size: 16),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          buscadorDialogo = val;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: coloresFiltrados.length,
+                        itemBuilder: (context, index) {
+                          final colorItem = coloresFiltrados[index];
+                          final idColor = colorItem['id_color']?.toString() ?? '';
+                          final nombreColor = colorItem['nombre'] ?? colorItem['nombre_color'] ?? 'Sin nombre';
+                          final isSelected = seleccionadosTemp.contains(idColor);
+
+                          return CheckboxListTile(
+                            title: Text(nombreColor.toString()),
+                            value: isSelected,
+                            dense: true,
+                            onChanged: (bool? value) {
+                              setStateDialog(() {
+                                if (value == true) {
+                                  seleccionadosTemp.add(idColor);
+                                } else {
+                                  seleccionadosTemp.remove(idColor);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _colorController.text = seleccionadosTemp.join(', ');
+                      _filtroColor = _colorController.text;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildInputFiltroConPopup({
     required TextEditingController controller,
     required String label,
     required IconData icon,
     required List<String> opciones,
+    VoidCallback? onTapCustom,
   }) {
     return GestureDetector(
-      onTap: opciones.isNotEmpty
+      onTap: onTapCustom ?? (opciones.isNotEmpty
           ? () => _mostrarSelectorOpciones(
                 titulo: label,
                 controller: controller,
                 opciones: opciones,
               )
-          : null,
+          : null),
       child: AbsorbPointer(
         child: TextField(
           controller: controller,
@@ -277,7 +390,7 @@ class _StockPageState extends State<StockPage> {
             labelText: label,
             labelStyle: const TextStyle(fontSize: 12),
             prefixIcon: Icon(icon, size: 16, color: Colors.blueAccent),
-            suffixIcon: opciones.isNotEmpty
+            suffixIcon: (opciones.isNotEmpty || onTapCustom != null)
                 ? const Icon(Icons.arrow_drop_down_circle_outlined, size: 18, color: Colors.blueAccent)
                 : null,
             filled: true,
@@ -301,7 +414,7 @@ class _StockPageState extends State<StockPage> {
       ),
     );
   }
-  
+
   Widget _buildIcon(String? icono) {
     if (icono == null || icono.isEmpty) {
       return const Icon(
@@ -383,7 +496,6 @@ class _StockPageState extends State<StockPage> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // PANEL DE FILTROS GRANDES FIJOS ARRIBA
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -526,11 +638,34 @@ class _StockPageState extends State<StockPage> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: _buildInputFiltroConPopup(
-                                controller: _colorController,
-                                label: 'ID Color',
-                                icon: Icons.palette_outlined,
-                                opciones: [],
+                              child: Builder(
+                                builder: (context) {
+                                  String textoVisual = '';
+                                  if (_colorController.text.isNotEmpty) {
+                                    List<String> ids = _colorController.text.split(',').map((e) => e.trim()).toList();
+                                    List<String> nombres = [];
+                                    for (var id in ids) {
+                                      final match = _listaColores.firstWhere(
+                                        (c) => c['id_color']?.toString() == id,
+                                        orElse: () => {},
+                                      );
+                                      if (match.isNotEmpty) {
+                                        nombres.add(match['nombre'] ?? match['nombre_color'] ?? id);
+                                      }
+                                    }
+                                    textoVisual = nombres.join(', ');
+                                  }
+
+                                  final controllerVisual = TextEditingController(text: textoVisual);
+
+                                  return _buildInputFiltroConPopup(
+                                    controller: controllerVisual,
+                                    label: 'Colores',
+                                    icon: Icons.palette_outlined,
+                                    opciones: [],
+                                    onTapCustom: _mostrarSelectorColores,
+                                  );
+                                },
                               ),
                             ),
                             if (_colorController.text.isNotEmpty) ...[
@@ -582,7 +717,6 @@ class _StockPageState extends State<StockPage> {
 
             const SizedBox(height: 10),
 
-            // LISTA DE RESULTADOS
             Expanded(
               child: cabeceraFiltrada.isEmpty
                   ? Center(
