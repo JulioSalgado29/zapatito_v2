@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart' as pw;
@@ -230,7 +230,6 @@ class _StockPageState extends State<StockPage> {
               final plataforma = sub['plataforma'];
               final color = sub['nombre_color'] ?? sub['color'] ?? 'Estándar';
 
-              // Aplicando el formato solicitado también en la leyenda de WhatsApp si lo deseas
               sbLeyenda.writeln('   👟 *${nombre.toString().trim()} - $color*');
               String detalleLinea = '      - Talla: $talla | Cant: $cantSub';
               if (taco != null) detalleLinea += ' | Taco: $taco';
@@ -245,7 +244,6 @@ class _StockPageState extends State<StockPage> {
         }
       }
 
-      // Estructuramos la recolección de imágenes uniendo nombre de calzado y color
       List<Map<String, dynamic>> itemsConDatos = [];
 
       for (var item in imagenesDesdeApi) {
@@ -280,19 +278,15 @@ class _StockPageState extends State<StockPage> {
         for (var url in urlsItem) {
           try {
             print('Descargando imagen desde: $url');
-
-            // Extraer el color de la URL usando split
             final uri = Uri.parse(url);
             final colorExtraido = uri.pathSegments[uri.pathSegments.length - 2];
-            // O simplemente: final colorExtraido = url.split('/')[7];
 
             final response = await http.get(uri);
             if (response.statusCode == 200) {
               itemsConDatos.add({
                 'bytes': response.bodyBytes,
                 'nombre_calzado': nombreCalzado.toString().trim(),
-                'nombre_color':
-                    colorExtraido, // Usamos el color extraído de la URL
+                'nombre_color': colorExtraido,
                 'url': url,
               });
             }
@@ -321,11 +315,19 @@ class _StockPageState extends State<StockPage> {
       if (comoPdf) {
         final pdf = pw.Document();
 
+        // 💡 SOLUCIÓN: Cargar fuentes que soporten Unicode (Asegúrate de agregarlas en pubspec.yaml)
+        final fontRegular = pw.Font.ttf(await rootBundle.load('lib/assets/fonts/Roboto-Regular.ttf'));
+        final fontBold = pw.Font.ttf(await rootBundle.load('lib/assets/fonts/Roboto-Bold.ttf'));
+
         // 1. Página inicial con el reporte de stock resumido
         pdf.addPage(
           pw.Page(
             pageFormat: pw.PdfPageFormat.a4,
             margin: const pw.EdgeInsets.all(32),
+            theme: pw.ThemeData.withFont(
+              base: fontRegular,
+              bold: fontBold,
+            ),
             build: (pw.Context context) {
               List<pw.Widget> widgetsPdf = [];
 
@@ -471,7 +473,7 @@ class _StockPageState extends State<StockPage> {
           ),
         );
 
-        // 2. Páginas individuales de imágenes con formato "$nombre_calzado - $nombre_color" debajo
+        // 2. Páginas individuales de imágenes
         for (var elemento in itemsConDatos) {
           final image = pw.MemoryImage(elemento['bytes'] as Uint8List);
           final String nombreCalzado = elemento['nombre_calzado'];
@@ -482,6 +484,10 @@ class _StockPageState extends State<StockPage> {
             pw.Page(
               pageFormat: pw.PdfPageFormat.a4,
               margin: const pw.EdgeInsets.all(32),
+              theme: pw.ThemeData.withFont(
+                base: fontRegular,
+                bold: fontBold,
+              ),
               build: (pw.Context context) {
                 return pw.Center(
                   child: pw.Column(
@@ -526,7 +532,7 @@ class _StockPageState extends State<StockPage> {
           sharePositionOrigin: sharePositionOrigin,
         );
       } else {
-        // FLUJO DE WHATSAPP (Imágenes individuales + Texto descriptivo mejorado)
+        // FLUJO DE WHATSAPP (Imágenes individuales + Texto descriptivo)
         final List<XFile> xFiles = [];
 
         for (int i = 0; i < itemsConDatos.length; i++) {
@@ -571,7 +577,6 @@ class _StockPageState extends State<StockPage> {
         final Rect? sharePositionOrigin =
             box != null ? box.localToGlobal(Offset.zero) & box.size : null;
 
-        // Al compartir por WhatsApp, enviamos las imágenes junto con el texto enriquecido
         await Share.shareXFiles(
           xFiles,
           text: sbLeyenda.toString(),
@@ -592,7 +597,7 @@ class _StockPageState extends State<StockPage> {
       }
     }
   }
-
+  
   void _mostrarSplashScreen() {
     showDialog(
       context: context,
