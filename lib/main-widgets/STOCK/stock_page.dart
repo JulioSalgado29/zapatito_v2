@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart' as pw;
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+
 import 'package:zapatito_v2/components/SplashScreen/splash_screen.dart';
 import 'package:zapatito_v2/components/widgets.dart';
 import 'package:zapatito_v2/services/API/colores.dart';
@@ -14,10 +14,12 @@ import 'package:zapatito_v2/services/API/stock.dart';
 
 class StockPage extends StatefulWidget {
   final String? inventarioId;
+  final bool isVendedor;
 
   const StockPage({
     super.key,
     required this.inventarioId,
+    required this.isVendedor,
   });
 
   @override
@@ -50,7 +52,8 @@ class _StockPageState extends State<StockPage> {
 
   // Conjunto para gestionar IDs seleccionados en la multiselección
   final Set<String> _seleccionadosIds = {};
-  bool get _estaEnModoSeleccion => _seleccionadosIds.isNotEmpty;
+  bool get _estaEnModoSeleccion =>
+      !widget.isVendedor && _seleccionadosIds.isNotEmpty;
 
   @override
   void initState() {
@@ -92,14 +95,13 @@ class _StockPageState extends State<StockPage> {
     super.dispose();
   }
 
-  // Método auxiliar para extraer el ID de cabecera de manera consistente
   String _obtenerIdCalzado(Map<String, dynamic> item) {
     final id = item['id_calzado'] ?? item['id'] ?? item['_id'];
     return id?.toString() ?? '';
   }
 
   void _toggleSeleccion(String id) {
-    if (id.isEmpty) return;
+    if (widget.isVendedor || id.isEmpty) return;
     setState(() {
       if (_seleccionadosIds.contains(id)) {
         _seleccionadosIds.remove(id);
@@ -110,12 +112,14 @@ class _StockPageState extends State<StockPage> {
   }
 
   void _limpiarSeleccion() {
+    if (widget.isVendedor) return;
     setState(() {
       _seleccionadosIds.clear();
     });
   }
 
   void _seleccionarTodos(List<Map<String, dynamic>> cabeceraVisibles) {
+    if (widget.isVendedor) return;
     setState(() {
       if (_seleccionadosIds.length == cabeceraVisibles.length) {
         _seleccionadosIds.clear();
@@ -131,8 +135,8 @@ class _StockPageState extends State<StockPage> {
     });
   }
 
-  // Menú flotante para elegir el formato de envío (Imágenes o PDF)
   void _mostrarOpcionesEnvio() {
+    if (widget.isVendedor) return;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -166,9 +170,8 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // Lógica completa para descargar imágenes de S3 y enviarlas con diseño profesional en la primera página del PDF
   Future<void> _enviarImagenesPorWhatsApp({required bool comoPdf}) async {
-    if (_seleccionadosIds.isEmpty) return;
+    if (widget.isVendedor || _seleccionadosIds.isEmpty) return;
 
     _mostrarSplashScreen();
 
@@ -196,7 +199,6 @@ class _StockPageState extends State<StockPage> {
         idsCalzado: idsCalzadoSeleccionados,
       );
 
-      // --- CONSTRUCCIÓN DE LEYENDA PARA WHATSAPP ---
       final StringBuffer sbLeyenda = StringBuffer();
       sbLeyenda.writeln('📋 *Catálogo de Stock Seleccionado* 👟✨\n');
 
@@ -226,15 +228,14 @@ class _StockPageState extends State<StockPage> {
               final cantSub = sub['stock_detalle'] ?? '0';
               final taco = sub['taco'];
               final plataforma = sub['plataforma'];
-              final color = sub['nombre_color'] ?? sub['color'];
+              final color = sub['nombre_color'] ?? sub['color'] ?? 'Estándar';
 
+              // Aplicando el formato solicitado también en la leyenda de WhatsApp si lo deseas
+              sbLeyenda.writeln('   👟 *${nombre.toString().trim()} - $color*');
               String detalleLinea = '      - Talla: $talla | Cant: $cantSub';
               if (taco != null) detalleLinea += ' | Taco: $taco';
               if (plataforma != null && plataforma.toString() != '0') {
                 detalleLinea += ' | Plat: $plataforma';
-              }
-              if (color != null && color.toString().isNotEmpty) {
-                detalleLinea += ' | Color: $color';
               }
 
               sbLeyenda.writeln(detalleLinea);
@@ -244,28 +245,64 @@ class _StockPageState extends State<StockPage> {
         }
       }
 
-      // Recopilar URLs de S3
-      List<String> todasLasImagenesS3 = [];
+      // Estructuramos la recolección de imágenes uniendo nombre de calzado y color
+      List<Map<String, dynamic>> itemsConDatos = [];
+
       for (var item in imagenesDesdeApi) {
+        final idCalzadoItem = item['id_calzado']?.toString() ?? '';
+
+        final itemCabecera = _cabecera.firstWhere(
+          (c) => _obtenerIdCalzado(c) == idCalzadoItem,
+          orElse: () => {},
+        );
+        final nombreCalzado = itemCabecera['nombre_calzado'] ??
+            itemCabecera['nombre'] ??
+            'Sin nombre';
+
         final rawImagenes = item['imagenes_filtradas'] ??
             item['imagen_url'] ??
             item['url'] ??
             item['icono'];
 
+        List<String> urlsItem = [];
         if (rawImagenes is List) {
           for (var img in rawImagenes) {
             if (img is String && img.trim().isNotEmpty) {
-              todasLasImagenesS3.add(img.trim());
+              urlsItem.add(img.trim());
             } else if (img is Map && img['url'] != null) {
-              todasLasImagenesS3.add(img['url'].toString().trim());
+              urlsItem.add(img['url'].toString().trim());
             }
           }
         } else if (rawImagenes is String && rawImagenes.trim().isNotEmpty) {
-          todasLasImagenesS3.add(rawImagenes.trim());
+          urlsItem.add(rawImagenes.trim());
+        }
+
+        for (var url in urlsItem) {
+          try {
+            print('Descargando imagen desde: $url');
+
+            // Extraer el color de la URL usando split
+            final uri = Uri.parse(url);
+            final colorExtraido = uri.pathSegments[uri.pathSegments.length - 2];
+            // O simplemente: final colorExtraido = url.split('/')[7];
+
+            final response = await http.get(uri);
+            if (response.statusCode == 200) {
+              itemsConDatos.add({
+                'bytes': response.bodyBytes,
+                'nombre_calzado': nombreCalzado.toString().trim(),
+                'nombre_color':
+                    colorExtraido, // Usamos el color extraído de la URL
+                'url': url,
+              });
+            }
+          } catch (e) {
+            print('Error al procesar la URL: $e');
+          }
         }
       }
 
-      if (todasLasImagenesS3.isEmpty) {
+      if (itemsConDatos.isEmpty) {
         _ocultarSplashScreen();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -283,23 +320,8 @@ class _StockPageState extends State<StockPage> {
 
       if (comoPdf) {
         final pdf = pw.Document();
-        List<Uint8List> bytesImagenes = [];
 
-        for (var url in todasLasImagenesS3) {
-          try {
-            final response = await http.get(Uri.parse(url));
-            if (response.statusCode == 200) {
-              bytesImagenes.add(response.bodyBytes);
-            }
-          } catch (_) {}
-        }
-
-        if (bytesImagenes.isEmpty) {
-          _ocultarSplashScreen();
-          return;
-        }
-
-        // 1. PRIMERA PÁGINA: Diseño profesional para la leyenda de stock
+        // 1. Página inicial con el reporte de stock resumido
         pdf.addPage(
           pw.Page(
             pageFormat: pw.PdfPageFormat.a4,
@@ -307,12 +329,11 @@ class _StockPageState extends State<StockPage> {
             build: (pw.Context context) {
               List<pw.Widget> widgetsPdf = [];
 
-              // Encabezado estilizado
               widgetsPdf.add(
                 pw.Container(
                   padding: const pw.EdgeInsets.all(12),
                   decoration: const pw.BoxDecoration(
-                    color: PdfColors.blue800,
+                    color: pw.PdfColors.blue800,
                     borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                   ),
                   child: pw.Row(
@@ -321,7 +342,7 @@ class _StockPageState extends State<StockPage> {
                       pw.Text(
                         'REPORTE DE STOCK SELECCIONADO',
                         style: pw.TextStyle(
-                          color: PdfColors.white,
+                          color: pw.PdfColors.white,
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,
                         ),
@@ -329,7 +350,7 @@ class _StockPageState extends State<StockPage> {
                       pw.Text(
                         'Zapatito v2',
                         style: const pw.TextStyle(
-                          color: PdfColors.white,
+                          color: pw.PdfColors.white,
                           fontSize: 12,
                         ),
                       ),
@@ -339,7 +360,6 @@ class _StockPageState extends State<StockPage> {
               );
               widgetsPdf.add(pw.SizedBox(height: 16));
 
-              // Contenido estructurado por cada calzado
               for (var idStr in _seleccionadosIds) {
                 final itemCabecera = _cabecera.firstWhere(
                   (c) => _obtenerIdCalzado(c) == idStr,
@@ -363,9 +383,9 @@ class _StockPageState extends State<StockPage> {
                       margin: const pw.EdgeInsets.only(bottom: 10),
                       padding: const pw.EdgeInsets.all(10),
                       decoration: pw.BoxDecoration(
-                        color: PdfColors.grey100,
-                        border:
-                            pw.Border.all(color: PdfColors.blue200, width: 1),
+                        color: pw.PdfColors.grey100,
+                        border: pw.Border.all(
+                            color: pw.PdfColors.blue200, width: 1),
                         borderRadius:
                             const pw.BorderRadius.all(pw.Radius.circular(6)),
                       ),
@@ -381,14 +401,14 @@ class _StockPageState extends State<StockPage> {
                                 style: pw.TextStyle(
                                   fontSize: 13,
                                   fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.blue900,
+                                  color: pw.PdfColors.blue900,
                                 ),
                               ),
                               pw.Container(
                                 padding: const pw.EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 2),
                                 decoration: const pw.BoxDecoration(
-                                  color: PdfColors.blue50,
+                                  color: pw.PdfColors.blue50,
                                   borderRadius: pw.BorderRadius.all(
                                       pw.Radius.circular(4)),
                                 ),
@@ -397,7 +417,7 @@ class _StockPageState extends State<StockPage> {
                                   style: pw.TextStyle(
                                     fontSize: 11,
                                     fontWeight: pw.FontWeight.bold,
-                                    color: PdfColors.blue700,
+                                    color: pw.PdfColors.blue700,
                                   ),
                                 ),
                               ),
@@ -405,7 +425,7 @@ class _StockPageState extends State<StockPage> {
                           ),
                           if (subdetallesItem.isNotEmpty) ...[
                             pw.SizedBox(height: 6),
-                            pw.Divider(color: PdfColors.grey300, height: 1),
+                            pw.Divider(color: pw.PdfColors.grey300, height: 1),
                             pw.SizedBox(height: 6),
                             ...subdetallesItem.map((sub) {
                               final talla = sub['talla'] ?? 'N/A';
@@ -430,7 +450,8 @@ class _StockPageState extends State<StockPage> {
                                 child: pw.Text(
                                   '• $detalles',
                                   style: const pw.TextStyle(
-                                      fontSize: 10, color: PdfColors.grey800),
+                                      fontSize: 10,
+                                      color: pw.PdfColors.grey800),
                                 ),
                               );
                             }),
@@ -450,15 +471,37 @@ class _StockPageState extends State<StockPage> {
           ),
         );
 
-        // 2. PÁGINAS SIGUIENTES: Imágenes de los calzados seleccionados
-        for (var imgBytes in bytesImagenes) {
-          final image = pw.MemoryImage(imgBytes);
+        // 2. Páginas individuales de imágenes con formato "$nombre_calzado - $nombre_color" debajo
+        for (var elemento in itemsConDatos) {
+          final image = pw.MemoryImage(elemento['bytes'] as Uint8List);
+          final String nombreCalzado = elemento['nombre_calzado'];
+          final String nombreColor = elemento['nombre_color'];
+          final textoEtiqueta = '$nombreCalzado - $nombreColor';
+
           pdf.addPage(
             pw.Page(
               pageFormat: pw.PdfPageFormat.a4,
+              margin: const pw.EdgeInsets.all(32),
               build: (pw.Context context) {
                 return pw.Center(
-                  child: pw.Image(image, fit: pw.BoxFit.contain),
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Image(image, fit: pw.BoxFit.contain),
+                      ),
+                      pw.SizedBox(height: 12),
+                      pw.Text(
+                        textoEtiqueta,
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: pw.PdfColors.blue900,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -483,29 +526,29 @@ class _StockPageState extends State<StockPage> {
           sharePositionOrigin: sharePositionOrigin,
         );
       } else {
+        // FLUJO DE WHATSAPP (Imágenes individuales + Texto descriptivo mejorado)
         final List<XFile> xFiles = [];
 
-        for (int i = 0; i < todasLasImagenesS3.length; i++) {
-          final url = todasLasImagenesS3[i];
+        for (int i = 0; i < itemsConDatos.length; i++) {
+          final elemento = itemsConDatos[i];
+          final Uint8List bytes = elemento['bytes'];
+          final String url = elemento['url'];
+
           try {
-            final response = await http.get(Uri.parse(url));
-
-            if (response.statusCode == 200) {
-              String extension = '.jpg';
-              final urlLower = url.toLowerCase();
-              if (urlLower.contains('.png')) {
-                extension = '.png';
-              } else if (urlLower.contains('.webp')) {
-                extension = '.webp';
-              }
-
-              final filePath =
-                  '${tempDir.path}/stock_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
-              final file = File(filePath);
-              await file.writeAsBytes(response.bodyBytes);
-
-              xFiles.add(XFile(filePath));
+            String extension = '.jpg';
+            final urlLower = url.toLowerCase();
+            if (urlLower.contains('.png')) {
+              extension = '.png';
+            } else if (urlLower.contains('.webp')) {
+              extension = '.webp';
             }
+
+            final filePath =
+                '${tempDir.path}/stock_img_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+            final file = File(filePath);
+            await file.writeAsBytes(bytes);
+
+            xFiles.add(XFile(filePath));
           } catch (_) {}
         }
 
@@ -528,6 +571,7 @@ class _StockPageState extends State<StockPage> {
         final Rect? sharePositionOrigin =
             box != null ? box.localToGlobal(Offset.zero) & box.size : null;
 
+        // Al compartir por WhatsApp, enviamos las imágenes junto con el texto enriquecido
         await Share.shareXFiles(
           xFiles,
           text: sbLeyenda.toString(),
@@ -1314,7 +1358,9 @@ class _StockPageState extends State<StockPage> {
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
-                              onLongPress: () => _toggleSeleccion(idCalzadoStr),
+                              onLongPress: !widget.isVendedor
+                                  ? () => _toggleSeleccion(idCalzadoStr)
+                                  : null,
                               onTap: () {
                                 if (_estaEnModoSeleccion) {
                                   _toggleSeleccion(idCalzadoStr);
@@ -1328,8 +1374,10 @@ class _StockPageState extends State<StockPage> {
                                       Checkbox(
                                         value: estaSeleccionado,
                                         activeColor: Colors.blueAccent,
-                                        onChanged: (_) =>
-                                            _toggleSeleccion(idCalzadoStr),
+                                        onChanged: !widget.isVendedor
+                                            ? (_) =>
+                                                _toggleSeleccion(idCalzadoStr)
+                                            : null,
                                       ),
                                     _buildIcon(icono),
                                   ],

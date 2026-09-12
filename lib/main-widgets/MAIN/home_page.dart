@@ -193,7 +193,8 @@ class _HomePageState extends State<HomePage> {
                         context,
                         label: 'Stock',
                         page: StockPage(
-                            inventarioId: inventarioId),
+                            inventarioId: inventarioId,
+                            isVendedor : isVendedor),
                       ),
                   ],
                 ),
