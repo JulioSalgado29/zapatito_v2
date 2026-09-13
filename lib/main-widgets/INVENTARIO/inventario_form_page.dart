@@ -77,6 +77,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
       _cargarDatosExistentes();
     } else {
       _subfilas.add({
+        'uuid': UniqueKey().toString(),
         'cantidad': 0,
         'talla': 0,
         'taco': 0,
@@ -103,19 +104,23 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
           _listaColores = colores;
           // Intentar resolver id_color para subfilas existentes que tengan solo el texto de colores
           for (var sub in _subfilas) {
-            if (sub['id_color'] == null && (sub['colores'] ?? '').toString().isNotEmpty) {
+            if (sub['id_color'] == null &&
+                (sub['colores'] ?? '').toString().isNotEmpty) {
               final coincidencia = _listaColores.firstWhere(
                 (c) {
-                  final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
-                      .toString()
-                      .toLowerCase()
-                      .trim();
-                  return nombre == sub['colores'].toString().toLowerCase().trim();
+                  final nombre =
+                      (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                          .toString()
+                          .toLowerCase()
+                          .trim();
+                  return nombre ==
+                      sub['colores'].toString().toLowerCase().trim();
                 },
                 orElse: () => {},
               );
               if (coincidencia.isNotEmpty) {
-                sub['id_color'] = coincidencia['id_color'] ?? coincidencia['id'];
+                sub['id_color'] =
+                    coincidencia['id_color'] ?? coincidencia['id'];
               }
             }
           }
@@ -157,17 +162,21 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
         _subfilas.clear();
         for (var item in listadoSubfilas) {
-          final nombreColorStr = (item['nombre_color'] ?? item['colores'] ?? '').toString();
+          final nombreColorStr =
+              (item['nombre_color'] ?? item['colores'] ?? '').toString();
           dynamic idColorVal = item['id_color'];
 
           // Si id_color viene nulo pero hay texto, intentar emparejarlo con la lista cargada
-          if (idColorVal == null && nombreColorStr.isNotEmpty && _listaColores.isNotEmpty) {
+          if (idColorVal == null &&
+              nombreColorStr.isNotEmpty &&
+              _listaColores.isNotEmpty) {
             final coincidencia = _listaColores.firstWhere(
               (c) {
-                final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
-                    .toString()
-                    .toLowerCase()
-                    .trim();
+                final nombre =
+                    (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                        .toString()
+                        .toLowerCase()
+                        .trim();
                 return nombre == nombreColorStr.toLowerCase().trim();
               },
               orElse: () => {},
@@ -177,7 +186,11 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
             }
           }
 
+          final subId = item['id_subfila_inventario']?.toString() ??
+              item['id']?.toString();
+
           _subfilas.add({
+            'uuid': subId ?? UniqueKey().toString(),
             'id': item['id_subfila_inventario'] ?? item['id'],
             'cantidad': item['cantidad'] ?? 0,
             'talla': item['talla'] ?? 0,
@@ -190,6 +203,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
         if (_subfilas.isEmpty) {
           _subfilas.add({
+            'uuid': UniqueKey().toString(),
             'cantidad': 0,
             'talla': 0,
             'taco': 0,
@@ -275,13 +289,15 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
     final combinaciones = <String>{};
     for (var sub in _subfilas) {
       // Intenta resolver id_color automáticamente si está en null pero hay texto ingresado
-      if (sub['id_color'] == null && (sub['colores'] ?? '').toString().trim().isNotEmpty) {
+      if (sub['id_color'] == null &&
+          (sub['colores'] ?? '').toString().trim().isNotEmpty) {
         final coincidencia = _listaColores.firstWhere(
           (c) {
-            final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
-                .toString()
-                .toLowerCase()
-                .trim();
+            final nombre =
+                (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
             return nombre == sub['colores'].toString().toLowerCase().trim();
           },
           orElse: () => {},
@@ -554,13 +570,20 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 Expanded(
                   child: Autocomplete<Map<String, dynamic>>(
                     displayStringForOption: (option) =>
-                        (option['nombre_color'] ?? option['nombre'] ?? option['color'])?.toString() ?? '',
+                        (option['nombre_color'] ??
+                                option['nombre'] ??
+                                option['color'])
+                            ?.toString() ??
+                        '',
                     optionsBuilder: (TextEditingValue textEditingValue) {
                       if (textEditingValue.text.isEmpty) {
                         return _listaColores;
                       }
                       return _listaColores.where((col) {
-                        final nombre = (col['nombre_color'] ?? col['nombre'] ?? col['color'] ?? '')
+                        final nombre = (col['nombre_color'] ??
+                                col['nombre'] ??
+                                col['color'] ??
+                                '')
                             .toString()
                             .toLowerCase();
                         return nombre
@@ -569,10 +592,11 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                     },
                     onSelected: (Map<String, dynamic> selection) {
                       setState(() {
-                        _filtroColor =
-                            (selection['nombre_color'] ?? selection['nombre'] ?? selection['color'])
-                                    ?.toString() ??
-                                '';
+                        _filtroColor = (selection['nombre_color'] ??
+                                    selection['nombre'] ??
+                                    selection['color'])
+                                ?.toString() ??
+                            '';
                         _filtroColorController.text = _filtroColor;
                         _paginaActual = 1;
                       });
@@ -685,6 +709,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
 
   Widget _buildSubfilaItem(int index) {
     final sub = _subfilas[index];
+    final String uuid = sub['uuid'] ?? index.toString();
     final tallas = List.generate(22, (i) => i + 22);
     final tacos = List.generate(15, (i) => i + 1);
     final opcionesPlataforma = ['Bajo', 'Mediano', 'Alto'];
@@ -702,7 +727,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
         : null;
 
     return Column(
-      key: ValueKey('subfila_$index'),
+      key: ValueKey('subfila_$uuid'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 12),
@@ -710,28 +735,37 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Autocomplete<Map<String, dynamic>>(
+              key: ValueKey('autocomplete_$uuid'),
               initialValue: TextEditingValue(text: sub['colores'] ?? ''),
               displayStringForOption: (option) =>
-                  (option['nombre_color'] ?? option['nombre'] ?? option['color'])?.toString() ?? '',
+                  (option['nombre_color'] ??
+                          option['nombre'] ??
+                          option['color'])
+                      ?.toString() ??
+                  '',
               optionsBuilder: (TextEditingValue textEditingValue) {
                 if (textEditingValue.text.isEmpty) {
                   return _listaColores;
                 }
                 return _listaColores.where((col) {
-                  final nombre = (col['nombre_color'] ?? col['nombre'] ?? col['color'] ?? '')
+                  final nombre = (col['nombre_color'] ??
+                          col['nombre'] ??
+                          col['color'] ??
+                          '')
                       .toString()
                       .toLowerCase();
-                  return nombre
-                      .contains(textEditingValue.text.toLowerCase());
+                  return nombre.contains(textEditingValue.text.toLowerCase());
                 });
               },
               onSelected: (Map<String, dynamic> seleccion) {
                 setState(() {
                   _subfilas[index]['id_color'] =
                       seleccion['id_color'] ?? seleccion['id'];
-                  _subfilas[index]['colores'] =
-                      (seleccion['nombre_color'] ?? seleccion['nombre'] ?? seleccion['color'])?.toString() ??
-                          '';
+                  _subfilas[index]['colores'] = (seleccion['nombre_color'] ??
+                              seleccion['nombre'] ??
+                              seleccion['color'])
+                          ?.toString() ??
+                      '';
                 });
               },
               fieldViewBuilder:
@@ -746,11 +780,14 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                   ),
                   onChanged: (v) => setState(() {
                     _subfilas[index]['colores'] = v;
-                    
+
                     // Buscar si el texto ingresado coincide con algún color de la lista para asignar id_color
                     final coincidencia = _listaColores.firstWhere(
                       (c) {
-                        final nombre = (c['nombre_color'] ?? c['nombre'] ?? c['color'] ?? '')
+                        final nombre = (c['nombre_color'] ??
+                                c['nombre'] ??
+                                c['color'] ??
+                                '')
                             .toString()
                             .toLowerCase()
                             .trim();
@@ -760,7 +797,8 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                     );
 
                     if (coincidencia.isNotEmpty) {
-                      _subfilas[index]['id_color'] = coincidencia['id_color'] ?? coincidencia['id'];
+                      _subfilas[index]['id_color'] =
+                          coincidencia['id_color'] ?? coincidencia['id'];
                     } else {
                       _subfilas[index]['id_color'] = null;
                     }
@@ -774,8 +812,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
           children: [
             Expanded(
               child: TextFormField(
-                key: ValueKey(
-                    'cantidad_${index}_${_subfilas[index]['id'] ?? ''}'),
+                key: ValueKey('cantidad_$uuid'),
                 decoration: const InputDecoration(
                     labelText: 'Cantidad', border: OutlineInputBorder()),
                 keyboardType: TextInputType.number,
@@ -992,7 +1029,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-
               TextFormField(
                 key: ValueKey('cantidad_total_$totalSeriesCalculado'),
                 initialValue: totalSeriesCalculado.toString(),
@@ -1020,7 +1056,6 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                   ),
                 ),
               ),
-
               const Divider(height: 32),
               const Text('Subfilas de inventario',
                   style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1038,6 +1073,7 @@ class _InventarioFormPageState extends State<InventarioFormPage> {
                   onPressed: () {
                     setState(() {
                       _subfilas.add({
+                        'uuid': UniqueKey().toString(),
                         'cantidad': 0,
                         'talla': 0,
                         'taco': 0,
