@@ -6,7 +6,6 @@ class StockService {
   // 1. Filtrar Inventario (Cabecera y Detalle)
   // POST /api/inventario/filtrar
   static Future<Map<String, dynamic>> filtrarInventario({
-    
     List<int> idsCalzado = const [],
     List<int> idsColor = const [],
     List<int> tallas = const [],
@@ -53,9 +52,19 @@ class StockService {
     required int idInventario,
     List<int> idsColor = const [],
     List<int> idsCalzado = const [],
+    List<int> tallas = const [],
+    List<String> plataforma = const [],
+    List<int> tacos = const [],
   }) async {
     try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/stock/imagenes-filtradas');
+      print(idInventario);
+      print(idsColor);
+      print(idsCalzado);
+      print(tallas);
+      print(plataforma);
+      print(tacos);
+      final url =
+          Uri.parse('${ApiService.baseUrl}/api/stock/imagenes-filtradas');
 
       final response = await http.post(
         url,
@@ -64,6 +73,9 @@ class StockService {
           'p_inventario_id': idInventario,
           'p_ids_color': idsColor,
           'p_ids_calzado': idsCalzado,
+          'p_tallas': tallas,
+          'p_plataforma': plataforma,
+          'p_tacos': tacos,
         }),
       );
 
@@ -71,7 +83,8 @@ class StockService {
         final List<dynamic> data = json.decode(response.body);
         return List<Map<String, dynamic>>.from(data);
       } else {
-        print('Error al obtener imágenes filtradas. Status code: ${response.statusCode}');
+        print(
+            'Error al obtener imágenes filtradas. Status code: ${response.statusCode}');
         print('Respuesta del servidor: ${response.body}');
         return [];
       }

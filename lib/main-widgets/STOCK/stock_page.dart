@@ -171,33 +171,61 @@ class _StockPageState extends State<StockPage> {
   }
 
   Future<void> _enviarImagenesPorWhatsApp({required bool comoPdf}) async {
-    if (widget.isVendedor || _seleccionadosIds.isEmpty) return;
+  if (widget.isVendedor || _seleccionadosIds.isEmpty) return;
 
-    _mostrarSplashScreen();
+  _mostrarSplashScreen();
 
-    try {
-      final List<int> idsCalzadoSeleccionados = _seleccionadosIds
-          .map((id) => int.tryParse(id) ?? 0)
-          .where((id) => id > 0)
-          .toList();
+  try {
+    final List<int> idsCalzadoSeleccionados = _seleccionadosIds
+        .map((id) => int.tryParse(id) ?? 0)
+        .where((id) => id > 0)
+        .toList();
 
-      final List<int> idsColorFiltro = _colorController.text.isNotEmpty
-          ? _colorController.text
-              .split(',')
-              .map((e) => int.tryParse(e.trim()) ?? 0)
-              .where((e) => e > 0)
-              .toList()
-          : [];
+    final List<int> idsColorFiltro = _colorController.text.isNotEmpty
+        ? _colorController.text
+            .split(',')
+            .map((e) => int.tryParse(e.trim()) ?? 0)
+            .where((e) => e > 0)
+            .toList()
+        : [];
 
-      final int idInventario =
-          int.tryParse(widget.inventarioId.toString()) ?? 0;
+    final List<int> tallasFiltro = _tallaController.text.isNotEmpty
+        ? _tallaController.text
+            .split(',')
+            .map((e) => int.tryParse(e.trim()) ?? 0)
+            .where((e) => e > 0)
+            .toList()
+        : [];
 
-      final List<Map<String, dynamic>> imagenesDesdeApi =
-          await StockService.obtenerCalzadoImagenesFiltradas(
-        idInventario: idInventario,
-        idsColor: idsColorFiltro,
-        idsCalzado: idsCalzadoSeleccionados,
-      );
+    final String platText = _plataformaController.text.trim();
+    final List<String> plataformaList = (platText.isEmpty || platText == '0')
+        ? []
+        : platText
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty && e != '0')
+            .toList();
+
+    final List<int> tacosFiltro = _tacoController.text.isNotEmpty
+        ? _tacoController.text
+            .split(',')
+            .map((e) => int.tryParse(e.trim()) ?? 0)
+            .where((e) => e > 0)
+            .toList()
+        : [];
+
+    final int idInventario =
+        int.tryParse(widget.inventarioId.toString()) ?? 0;
+
+    final List<Map<String, dynamic>> imagenesDesdeApi =
+        await StockService.obtenerCalzadoImagenesFiltradas(
+      idInventario: idInventario,
+      idsColor: idsColorFiltro,
+      idsCalzado: idsCalzadoSeleccionados,
+      tallas: tallasFiltro,
+      plataforma: plataformaList,
+      tacos: tacosFiltro,
+    );
 
       final StringBuffer sbLeyenda = StringBuffer();
       sbLeyenda.writeln('📋 *Catálogo de Stock Seleccionado* 👟✨\n');
