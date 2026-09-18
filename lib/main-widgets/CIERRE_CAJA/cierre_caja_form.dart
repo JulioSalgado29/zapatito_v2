@@ -797,11 +797,21 @@ class _CierreCajaFormState extends State<CierreCajaForm>
         itemBuilder: (context, index) {
           final item = detalles[index];
           final nombre = item['nombre_calzado'] ?? 'Calzado';
-          final talla = item['talla'] ?? '-';
-          final taco = item['taco'] ?? '-';
-          final plataforma = item['plataforma'] ?? '-';
+          final talla = item['talla']?.toString() ?? '-';
+          final taco = item['taco']?.toString() ?? '0';
+          final plataforma = item['plataforma']?.toString() ?? '0';
           final colores = item['colores'] ?? '-';
           final cantidad = item['cantidad'] ?? 0;
+
+          // Construcción dinámica de segmentos del subtítulo
+          final List<String> subtitleParts = ['Talla: $talla'];
+          if (taco != '0' && taco.isNotEmpty) {
+            subtitleParts.add('Taco: $taco');
+          }
+          if (plataforma != '0' && plataforma.isNotEmpty) {
+            subtitleParts.add('Plat.: $plataforma');
+          }
+          subtitleParts.add('Color: $colores');
 
           return ListTile(
             dense: true,
@@ -818,7 +828,7 @@ class _CierreCajaFormState extends State<CierreCajaForm>
                   fontSize: 13),
             ),
             subtitle: Text(
-              'Talla: $talla | Taco: $taco | Plat.: $plataforma | Color: $colores',
+              subtitleParts.join(' | '),
               style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
             ),
             trailing: Container(
@@ -840,4 +850,5 @@ class _CierreCajaFormState extends State<CierreCajaForm>
       ),
     );
   }
+
 }
