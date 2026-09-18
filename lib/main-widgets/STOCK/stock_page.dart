@@ -663,18 +663,23 @@ class _StockPageState extends State<StockPage> {
               .toList()
           : [];
 
-      final String plataforma = _plataformaController.text.trim().isEmpty
-          ? '0'
-          : _plataformaController.text.trim();
+      final String platText = _plataformaController.text.trim();
+final List<String> plataformaList = (platText.isEmpty || platText == '0')
+    ? []
+    : platText
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && e != '0')
+        .toList();
 
-      final resultados = await StockService.filtrarInventario(
-        idsCalzado: [],
-        idsColor: colores,
-        tallas: tallas,
-        plataforma: plataforma,
-        tacos: tacos,
-        idInventario: int.parse(widget.inventarioId.toString()),
-      );
+final resultados = await StockService.filtrarInventario(
+  idsCalzado: [],
+  idsColor: colores,
+  tallas: tallas,
+  plataforma: plataformaList, // <-- Ahora enviará ['Bajo', 'Mediano', 'Alto'] limpio
+  tacos: tacos,
+  idInventario: int.parse(widget.inventarioId.toString()),
+);
 
       if (mounted) {
         setState(() {

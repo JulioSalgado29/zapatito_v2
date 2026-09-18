@@ -10,7 +10,7 @@ class StockService {
     List<int> idsCalzado = const [],
     List<int> idsColor = const [],
     List<int> tallas = const [],
-    String plataforma = '0',
+    List<String> plataforma = const [],
     List<int> tacos = const [],
     required int idInventario,
   }) async {
