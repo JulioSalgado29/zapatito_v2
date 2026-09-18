@@ -232,7 +232,9 @@ class _StockPageState extends State<StockPage> {
 
               sbLeyenda.writeln('   👟 *${nombre.toString().trim()} - $color*');
               String detalleLinea = '      - Talla: $talla | Cant: $cantSub';
-              if (taco != null) detalleLinea += ' | Taco: $taco';
+              if (taco != null && taco.toString() != '0') {
+                detalleLinea += ' | Taco: $taco';
+              }
               if (plataforma != null && plataforma.toString() != '0') {
                 detalleLinea += ' | Plat: $plataforma';
               }
@@ -438,12 +440,15 @@ class _StockPageState extends State<StockPage> {
 
                               String detalles =
                                   'Talla: $talla  |  Cant: $cantSub';
-                              if (taco != null) detalles += '  |  Taco: $taco';
+                              if (taco != null && taco.toString() != '0') {
+                                detalles += '  |  Taco: $taco';
+                              }
                               if (plataforma != null &&
                                   plataforma.toString() != '0') {
                                 detalles += '  |  Plat: $plataforma';
                               }
-                              if (color != null && color.toString().isNotEmpty) {
+                              if (color != null &&
+                                  color.toString().isNotEmpty) {
                                 detalles += '  |  Color: $color';
                               }
 
@@ -597,7 +602,7 @@ class _StockPageState extends State<StockPage> {
       }
     }
   }
-  
+
   void _mostrarSplashScreen() {
     showDialog(
       context: context,
@@ -1459,7 +1464,8 @@ class _StockPageState extends State<StockPage> {
                                             spacing: 8,
                                             runSpacing: 4,
                                             children: [
-                                              if (taco != null)
+                                              if (taco != null &&
+                                                  taco.toString() != '0')
                                                 Container(
                                                   padding: const EdgeInsets
                                                       .symmetric(
